@@ -1,0 +1,11 @@
+/.build/
+/build/
+/.swiftpm/
+.DS_Store
+*.xcuserstate
+.env*
+/evidence/
+/references/
+/tickets/
+/backups/
+/Diversions/
