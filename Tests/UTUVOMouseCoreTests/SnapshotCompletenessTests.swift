@@ -19,10 +19,11 @@ struct SnapshotCompletenessTests {
         let control = ProfileSector(bytes: .init(repeating: 0, count: 255), sector: 0).withRecomputedCRC()
         snapshot.plan = SuperstrikePlan(
             info: info, mode: 1, runningSector: 1, storedSector: 1,
-            isRunning: true, enabledSectors: [1], controlBytes: control.bytes
+            isRunning: true, enabledSectors: [1], controlBytes: control.bytes, activeDPIIndex: 1
         )
         var profileBytes = control.bytes
         profileBytes[0] = 3
+        profileBytes[2] = 1
         profileBytes[9] = 0x80; profileBytes[10] = 0x0C
         profileBytes[11] = 0x80; profileBytes[12] = 0x0C
         snapshot.profile = ProfileSector(bytes: profileBytes, sector: 1).withRecomputedCRC()

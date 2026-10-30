@@ -1,28 +1,42 @@
 import Foundation
 import UTUVOMouseCore
 import UTUVOMouseIO
+import UTUVOMouseLocalization
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 
+if arguments.contains("--demo") {
+    LaunchOptions.demoMode = true
+}
+if let index = arguments.firstIndex(of: "--language"), index + 1 < arguments.count {
+    LaunchOptions.languageOverride = MouseLanguage(rawValue: arguments[index + 1])
+}
+if arguments.contains("--localization-check") {
+    for language in [MouseLanguage.english, .traditionalChinese] {
+        let localizer = MouseLocalizer(language: language)
+        print("\(language.rawValue)\t\(localizer.resourceBundleURL.path)\t\(localizer.string("app.title"))\t\(localizer.string("language.section"))")
+    }
+    exit(0)
+}
+AppLocalization.configure(demoMode: LaunchOptions.demoMode)
+
 if arguments.contains("--help") || arguments.contains("-h") {
     print("""
-    UTUVO Mouse
+    \(AppLocalization.text("app.title"))
 
-      --probe    唯讀掃描：列出 HID++ 裝置與可讀到的狀態，輸出 JSON。不寫入任何設定。
-      --demo     以合成資料啟動介面（畫面會明確標示為示範模式）。
-      --help     顯示這段說明。
+      --probe    \(AppLocalization.text("cli.help.probe"))
+      --demo     \(AppLocalization.text("cli.help.demo"))
+      --language en|zh-Hant  \(AppLocalization.text("cli.help.language"))
+      --localization-check  \(AppLocalization.text("cli.help.localizationCheck"))
+      --help     \(AppLocalization.text("cli.help.help"))
 
-    介面模式（不帶參數）會連接實際裝置。
+    \(AppLocalization.text("cli.help.normal"))
     """)
     exit(0)
 }
 
 if arguments.contains("--probe") {
     exit(await ProbeCommand.run())
-}
-
-if arguments.contains("--demo") {
-    LaunchOptions.demoMode = true
 }
 
 // Developer only: check the layout in one appearance without touching the

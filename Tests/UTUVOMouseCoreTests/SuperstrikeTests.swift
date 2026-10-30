@@ -24,9 +24,10 @@ struct SuperstrikeProfileTests {
         #expect(!broken.hasValidCRC)
     }
 
-    @Test("DPI lives in bytes 9...12 and is little endian")
+    @Test("selected stage 1 lives at 4 + 1 * 5 and is little endian")
     func dpiOffsets() {
         var bytes = [UInt8](repeating: 0, count: 255)
+        bytes[2] = 1
         bytes[9] = 0x80; bytes[10] = 0x0C   // X = 3200 (0x0C80) little endian
         bytes[11] = 0x00; bytes[12] = 0x14  // Y = 5120 (0x1400) little endian
         let sector = ProfileSector(bytes: bytes, sector: 1)
@@ -45,7 +46,9 @@ struct SuperstrikeProfileTests {
 
     @Test("patching DPI keeps every other byte")
     func patchPreservesOtherBytes() throws {
-        let original = ProfileSector(bytes: [UInt8](repeating: 0x5A, count: 255), sector: 1)
+        var bytes = [UInt8](repeating: 0x5A, count: 255)
+        bytes[2] = 1
+        let original = ProfileSector(bytes: bytes, sector: 1)
         let patched = try original.settingDPI(x: 1600, y: 800)
         let changed = zip(original.bytes, patched.bytes).enumerated().filter { $0.element.0 != $0.element.1 }.map { $0.offset }
         // Only the two DPI words and the two CRC bytes may differ.
@@ -98,6 +101,7 @@ private final class FakeSuperstrike: @unchecked Sendable {
     var sector: [UInt8]
     var currentSector: UInt16 = 1
     var writeCount = 0
+    var liveHITSOverride: [[UInt8]]?
     var committed: [UInt8] = []
     private var pending: [UInt8] = []
     private var pendingLength = 0
@@ -107,6 +111,7 @@ private final class FakeSuperstrike: @unchecked Sendable {
         0x1004: 0x01,
         0x1B0C: 0x02,
         0x2201: 0x03,
+        0x2202: 0x09,
         0x8100: 0x0A,
     ]
 
@@ -141,6 +146,9 @@ private final class FakeSuperstrike: @unchecked Sendable {
                 default:
                     return nil
                 }
+            case 0x09:
+                let offset = 4 + Int(sector[2]) * 5
+                return frame([0, sector[offset+1], sector[offset], sector[offset+1], sector[offset], sector[offset+3], sector[offset+2], sector[offset+3], sector[offset+2], sector[offset+4]])
             case 0x0A:  // OnboardProfiles
                 switch function {
                 case 0x00:  // getInfo
@@ -148,6 +156,7 @@ private final class FakeSuperstrike: @unchecked Sendable {
                     return frame([0x01, 0x08, 0x01, 0x05, 0x01, 0x05, 0x10, 0x00, 0xFF, 0x0A])
                 case 0x02:  // getMode
                     return frame([mode])
+                case 0x0B: return frame([sector[2]])
                 case 0x04:  // getCurrentProfile
                     return frame([UInt8(currentSector >> 8), UInt8(currentSector & 0xFF)])
                 case 0x05:  // read
@@ -179,6 +188,7 @@ private final class FakeSuperstrike: @unchecked Sendable {
                         committed[committed.count - 1] ^= 0xFF
                     }
                     sector = committed
+                    liveHITSOverride = nil
                     return frame([])
                 default:
                     return nil
@@ -186,10 +196,11 @@ private final class FakeSuperstrike: @unchecked Sendable {
             case 0x02:  // ANALOG_BUTTONS
                 switch function {
                 case 0x00:
-                    return frame([0x00, 0x02, 10 << 2, 5 << 2, 5 << 2])
+                    return frame([0x00, 0x03, 10 << 2, 5 << 2, 5 << 2])
                 case 0x02:
                     // [button, act<<2, rt<<2 | flag, haptics<<2]
-                    return frame([payload[0], 2 << 2, (1 << 2) | 0x01, 3 << 2])
+                    let offset = 38 + Int(payload[0]) * 3
+                    return frame([payload[0]] + (liveHITSOverride?[Int(payload[0])] ?? Array(sector[offset..<(offset+3)])))
                 default:
                     return nil
                 }
@@ -226,6 +237,8 @@ struct SuperstrikeWriteTests {
     private func makeSector() -> ProfileSector {
         var bytes = [UInt8](repeating: 0, count: 255)
         bytes[0] = 3            // 1000 Hz
+        bytes.replaceSubrange(38..<44, with: [20,8,12,20,8,12])
+        bytes[2] = 1
         bytes[9] = 0x80; bytes[10] = 0x0C  // X = 3200
         bytes[11] = 0x80; bytes[12] = 0x0C // Y = 3200
         return ProfileSector(bytes: bytes, sector: 1).withRecomputedCRC()
@@ -235,6 +248,43 @@ struct SuperstrikeWriteTests {
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("utuvo-mouse-tests-\(UUID().uuidString)")
         return (FileBackupStore(root: root), root)
+    }
+
+    @Test("persistent HITS is backed up, verified in NVM and applied live")
+    func persistentHITSApplies() async throws {
+        let device = FakeSuperstrike(sector: makeSector().bytes)
+        let (store, root) = temporaryStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (service, client) = try makeService(device: device, store: store)
+        let plan = try await service.readPlan()
+        let result = await service.applyCompound(plan: plan, baseline: makeSector(), changes: .init(hits: [.init(button: 0, rapidTrigger: 3)]))
+        #expect(result.isApplied)
+        #expect(device.sector[39] == 0x0D)
+        #expect(Array(device.sector[41..<44]) == [20,8,12])
+        let live = try await client.readHitsButton(0)
+        #expect(live.rapidTriggerEnabled && live.rapidTrigger == 3)
+        let after = ProfileSector(bytes: device.sector, sector: 1)
+        let restored = await service.applyCompound(plan: plan, baseline: after, changes: .init(hits: [.init(button: 0, rapidTrigger: 0)]))
+        #expect(restored.isApplied)
+        #expect(device.sector[39] == 0x0C) // Disabled, sensitivity remains 3.
+    }
+
+    @Test("saving HITS reconciles volatile settings without resetting the other key or NVM reserved bits")
+    func saveLiveHITSDrift() async throws {
+        var original = makeSector()
+        original.bytes.replaceSubrange(38..<44, with: [23,10,13,22,8,15])
+        original = original.withRecomputedCRC()
+        let device = FakeSuperstrike(sector: original.bytes)
+        device.liveHITSOverride = [[24,13,16], [16,5,8]]
+        let (store, root) = temporaryStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (service, _) = try makeService(device: device, store: store)
+        let plan = try await service.readPlan()
+        let result = await service.applyCompound(plan: plan, baseline: original, changes: .init(hits: [.init(button: 0, rapidTrigger: 0)]))
+        #expect(result.isApplied)
+        #expect(Array(device.sector[38..<44]) == [27,14,17,18,5,11])
+        let changed = zip(original.bytes, device.sector).enumerated().filter { $0.element.0 != $0.element.1 }.map(\.offset)
+        #expect(Set(changed).isSubset(of: [38,39,40,41,42,43,253,254]))
     }
 
     @Test("host mode stops the write before any sector is touched")
@@ -263,7 +313,13 @@ struct SuperstrikeWriteTests {
         let device = FakeSuperstrike(sector: makeSector().bytes)
         let (service, _) = try makeService(device: device, store: FailingBackupStore())
         let outcome = try await applyDPI(service, 1600, 1600)
-        #expect(outcome == .backupFailed("備份寫入後無法讀回：utuvo-mouse-must-not-exist"))
+        guard case .backupFailedReason(.backup(.unreadable(let fileURL))) = outcome else {
+            Issue.record("expected a typed backup failure, got \(outcome)")
+            return
+        }
+        #expect(fileURL.lastPathComponent == "utuvo-mouse-must-not-exist")
+        #expect(outcome.localizedSummary(language: .english).contains("Backup failed"))
+        #expect(outcome.localizedSummary(language: .english).contains("utuvo-mouse-must-not-exist"))
         #expect(device.writeCount == 0)
     }
 
@@ -313,7 +369,7 @@ struct SuperstrikeWriteTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let (service, _) = try makeService(device: device, store: store)
         let outcome = try await applyDPI(service, 1600, 1600)
-        guard case .uncertain = outcome else {
+        guard case .uncertainReason = outcome else {
             Issue.record("expected an uncertain outcome, got \(outcome)")
             return
         }
@@ -328,7 +384,7 @@ struct SuperstrikeWriteTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let (service, _) = try makeService(device: device, store: store)
         let outcome = try await applyDPI(service, 1600, 1600)
-        guard case .uncertain = outcome else {
+        guard case .uncertainReason = outcome else {
             Issue.record("expected an uncertain outcome, got \(outcome)")
             return
         }
@@ -392,7 +448,7 @@ struct HIDPPCorrelationTests {
         }
     }
 
-    @Test("rapid trigger off is written as exactly zero, the firmware bit survives otherwise")
+    @Test("rapid trigger switch is separate from its nonzero sensitivity")
     func rapidTriggerEncoding() async throws {
         let transport = MockHIDPPTransport { request in
             let feature = request[2]
@@ -411,7 +467,7 @@ struct HIDPPCorrelationTests {
                 if function == 0x00 { return frame([0x02, 0x00, 0x01]) }
                 return frame([0x04, 0x02])
             case 0x02:
-                if function == 0x00 { return frame([0x00, 0x02, 10 << 2, 5 << 2, 5 << 2]) }
+                if function == 0x00 { return frame([0x00, 0x03, 10 << 2, 5 << 2, 5 << 2]) }
                 if function == 0x02 { return frame([payload[0], 2 << 2, (1 << 2) | 0x01, 3 << 2]) }
                 return frame([])
             default:
@@ -430,14 +486,14 @@ struct HIDPPCorrelationTests {
         #expect(config.rapidTriggerFlag == 1)
         #expect(config.haptics == 3)
 
-        // Rapid trigger off: the wire byte has to be exactly zero.
+        // Disable only the enable bit; sensitivity remains valid.
         var off = config
-        off.rapidTrigger = 0
+        off.rapidTriggerEnabled = false
         try await client.setHitsButton(off, maxActuation: 10, maxRapidTrigger: 5, maxHaptics: 5)
         let offFrame = transport.sentFrames.last!
         #expect(offFrame[4] == 0)
         #expect(offFrame[5] == 2 << 2)
-        #expect(offFrame[6] == 0)
+        #expect(offFrame[6] == 1 << 2)
         #expect(offFrame[7] == 3 << 2)
 
         // Rapid trigger on: the firmware bit in bit 0 survives.

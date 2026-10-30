@@ -1,7 +1,9 @@
 import Foundation
 import CoreGraphics
+import Carbon.HIToolbox
 import ApplicationServices
 import UTUVOMouseCore
+import UTUVOMouseLocalization
 
 /// The actions a diverted side button can trigger.
 ///
@@ -13,11 +15,12 @@ public enum MappedAction: String, Codable, Sendable, CaseIterable {
     case copy
     case paste
 
-    public var title: String {
-        switch self {
-        case .native: "預設（不改道）"
-        case .copy: "複製"
-        case .paste: "貼上"
+    public func title(language: MouseLanguage) -> String {
+        let localizer = MouseLocalizer(language: language)
+        return switch self {
+        case .native: localizer.string("action.native")
+        case .copy: localizer.string("action.copy")
+        case .paste: localizer.string("action.paste")
         }
     }
 }
@@ -31,12 +34,17 @@ public protocol ActionPerforming: Sendable {
 
 /// Posts the macOS command events for real.
 public final class SystemActionPerformer: ActionPerforming, @unchecked Sendable {
-    public init() {}
+    private let eventSink: @Sendable (CGEvent) -> Void
+
+    /// Tests capture the actual generated events without posting global input.
+    public init(eventSink: @escaping @Sendable (CGEvent) -> Void = { $0.post(tap: .cghidEventTap) }) {
+        self.eventSink = eventSink
+    }
 
     public func perform(_ action: MappedAction) {
         switch action {
-        case .copy: postCommand(key: 6)    // C
-        case .paste: postCommand(key: 25)  // V
+        case .copy: postCommand(key: CGKeyCode(kVK_ANSI_C))
+        case .paste: postCommand(key: CGKeyCode(kVK_ANSI_V))
         case .native: break
         }
     }
@@ -47,8 +55,8 @@ public final class SystemActionPerformer: ActionPerforming, @unchecked Sendable 
               let up = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: false) else { return }
         down.flags = .maskCommand
         up.flags = .maskCommand
-        down.post(tap: .cghidEventTap)
-        up.post(tap: .cghidEventTap)
+        eventSink(down)
+        eventSink(up)
     }
 }
 

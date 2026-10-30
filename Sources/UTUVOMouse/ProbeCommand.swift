@@ -10,10 +10,12 @@ enum ProbeCommand {
     static func run() async -> Int32 {
         let service = LogitechHIDService()
         let collector = DeviceCollector()
+        let language = AppLocalization.localizer.language
         service.onDevicesChanged { transports in
             collector.update(transports)
         }
-        service.onError { descriptor, message in
+        service.onError { descriptor, failure in
+            let message = failure.message(language: language)
             FileHandle.standardError.write(Data(("utuvo-mouse: \(descriptor.productName): " + message + "\n").utf8))
         }
         service.start()
@@ -34,7 +36,7 @@ enum ProbeCommand {
                 deviceIndex: DeviceReader.deviceIndex(for: transport),
                 timeout: .milliseconds(600)
             ) else { continue }
-            let snapshot = await DeviceReader.snapshot(for: transport, client: client)
+            let snapshot = await DeviceReader.snapshot(for: transport, client: client, language: AppLocalization.localizer.language)
             devices.append(dictionary(for: snapshot))
         }
 
@@ -46,14 +48,14 @@ enum ProbeCommand {
             "deviceCount": devices.count,
             "devices": devices,
             "notes": [
-                "probe 模式只讀取裝置狀態，未寫入任何設定。",
-                "stableID 是不可逆雜湊，不含序號或藍牙位址。",
+                AppLocalization.text("cli.probe.note.readOnly"),
+                AppLocalization.text("cli.probe.note.stableID"),
             ],
         ]
         service.stop()
 
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) else {
-            FileHandle.standardError.write(Data("utuvo-mouse: 無法序列化 JSON\n".utf8))
+            FileHandle.standardError.write(Data(("utuvo-mouse: " + AppLocalization.text("cli.probe.serializeFailed") + "\n").utf8))
             return 1
         }
         FileHandle.standardOutput.write(data)
@@ -72,14 +74,16 @@ enum ProbeCommand {
         }
         var battery: [String: Any] = ["percent": snapshot.battery.percentage as Any]
         battery["charging"] = snapshot.battery.charging as Any
-        if let note = snapshot.battery.note { battery["note"] = note }
+        if let note = snapshot.battery.message(language: AppLocalization.localizer.language) { battery["note"] = note }
 
         var device: [String: Any] = [
             "stableID": snapshot.identity.stableID,
             "model": snapshot.identity.model.rawValue,
+            "modelDisplayName": snapshot.identity.model.displayTitle(language: AppLocalization.localizer.language),
             "vendorID": String(format: "0x%04X", snapshot.identity.vendorID),
             "productID": String(format: "0x%04X", snapshot.identity.productID),
             "transport": snapshot.identity.transport.rawValue,
+            "transportDisplayName": snapshot.identity.transport.displayTitle(language: AppLocalization.localizer.language),
             "deviceIndex": String(format: "0x%02X", snapshot.identity.deviceIndex),
             "productName": snapshot.identity.productName,
             "features": features,
@@ -124,7 +128,8 @@ enum ProbeCommand {
                 buttons.append([
                     "button": button.button,
                     "actuation": button.actuation,
-                    "rapidTrigger": button.rapidTrigger,
+                    "rapidTriggerSensitivity": button.rapidTrigger,
+                    "rapidTriggerEnabled": button.rapidTriggerEnabled,
                     "haptics": button.haptics,
                 ])
             }
@@ -139,7 +144,7 @@ enum ProbeCommand {
                 "crcValid": profile.hasValidCRC,
                 "profileName": profile.name,
                 "buttons": profile.buttonSlots.enumerated().map { index, action in
-                    ["slot": index, "kind": String(describing: action.kind), "summary": action.summary]
+                    ["slot": index, "kind": String(describing: action.kind), "summary": action.localizedSummary(language: AppLocalization.localizer.language)]
                 },
             ]
             device["onboardMode"] = snapshot.onboardMode as Any

@@ -2,11 +2,13 @@ import Foundation
 import SwiftUI
 import UTUVOMouseCore
 import UTUVOMouseIO
+import UTUVOMouseLocalization
 
 /// Options fixed when the process starts.
 @MainActor
 enum LaunchOptions {
     static var demoMode = false
+    static var languageOverride: MouseLanguage?
     /// Developer only: `dark` or `light`, used to check the layout without
     /// changing the system appearance.
     static var appearance: ColorScheme?
@@ -14,7 +16,8 @@ enum LaunchOptions {
 
 /// Reads the state of an open HID++ interface.
 ///
-/// Everything here is read only: no function that writes to the device is called.
+/// Reads settings; a receiver announcement requests arrival notifications only.
+/// No pairing, profile, mode or user configuration is changed.
 /// The type is `nonisolated` so the reads run off the main actor.
 nonisolated enum DeviceReader {
 
@@ -45,19 +48,30 @@ nonisolated enum DeviceReader {
     }
 
     /// Reads one device. Values that cannot be read stay unknown.
-    static func snapshot(for transport: IOKitHIDTransport, client: HIDPPClient) async -> DeviceSnapshot {
+    static func snapshot(for transport: IOKitHIDTransport, client: HIDPPClient, language: MouseLanguage) async -> DeviceSnapshot {
+        let text = MouseLocalizer(language: language)
         var snapshot = DeviceSnapshot(identity: identity(for: transport))
         snapshot.connectionEpoch = transport.connectionToken
         snapshot.identity.model = detectModel(features: [:], productID: transport.descriptor.productID)
 
         var protocolVersion: String?
         do {
-            let ping = try await client.request(featureIndex: 0, function: 1, shortFallback: true)
+            try await transport.announceReceiverIfNeeded()
+            let ping: [UInt8]
+            do {
+                ping = try await client.request(featureIndex: 0, function: 1, shortFallback: true)
+            } catch HIDPPError.localized(key: "error.hidpp.receiverUnavailable", arguments: []) where transport.descriptor.productID == TargetProducts.receiver {
+                // One retry of this read only, following Nanostrike's wake path.
+                // Writes and flash commits are never retried by this mechanism.
+                try await transport.announceReceiverIfNeeded(force: true)
+                ping = try await client.request(featureIndex: 0, function: 1, shortFallback: true)
+            }
             if ping.count >= 2 {
                 protocolVersion = "\(ping[0]).\(ping[1])"
             }
         } catch {
-            snapshot.issues.append("連線測試失敗：\(error.localizedDescription)")
+            let message = (error as? HIDPPError)?.localizedMessage(language: language) ?? error.localizedDescription
+            snapshot.issues.append(text.string("device.issue.ping", arguments: [message]))
             return snapshot
         }
         snapshot.protocolVersion = protocolVersion
@@ -68,7 +82,8 @@ nonisolated enum DeviceReader {
                 snapshot.features[feature.id] = feature.index
             }
         } catch {
-            snapshot.issues.append("無法列出功能表：\(error.localizedDescription)")
+            let message = (error as? HIDPPError)?.localizedMessage(language: language) ?? error.localizedDescription
+            snapshot.issues.append(text.string("device.issue.features", arguments: [message]))
             return snapshot
         }
 
@@ -79,7 +94,7 @@ nonisolated enum DeviceReader {
         if let battery = try? await client.readBattery() {
             snapshot.battery = battery
         } else {
-            snapshot.issues.append("無法讀取電池狀態")
+            snapshot.issues.append(text.string("device.issue.battery"))
             authoritative = false
         }
 
@@ -132,21 +147,28 @@ nonisolated enum DeviceReader {
                 snapshot.plan = plan
                 snapshot.onboardMode = plan.mode
                 if let bytes = try? await onboard.readSector(plan.storedSector, size: plan.info.sectorSize) {
-                    let profile = ProfileSector(bytes: bytes, sector: plan.storedSector)
+                    let profile = ProfileSector(bytes: bytes, sector: plan.storedSector, activeDPIIndex: plan.activeDPIIndex)
                     snapshot.profile = profile
+                    if plan.isRunning {
+                        if let actual = try? await client.readSensorDPI(), actual.x == profile.dpiX, actual.y == profile.dpiY {
+                            // Both the selected profile stage and the sensor agree.
+                        } else {
+                            authoritative = false
+                            snapshot.issues.append(text.string("error.profile.dpiVerify"))
+                        }
+                    }
                     if !profile.hasValidCRC {
-                        snapshot.issues.append("板載 sector 的 CRC 驗證失敗")
+                        snapshot.issues.append(text.string("device.issue.profileCRC"))
                     }
                 }
                 if !plan.isRunning {
-                    snapshot.issues.append(
-                        plan.isOnboardMode
-                        ? "板載模式，但設定檔 \(plan.storedSector) 不是裝置正在執行的設定檔"
-                        : "裝置目前在主控模式，畫面上是儲存的設定檔，不是正在套用的設定檔"
-                    )
+                    snapshot.issues.append(text.string(
+                        plan.isOnboardMode ? "device.issue.profileNotRunningOnboard" : "device.issue.profileNotRunningHost",
+                        arguments: [plan.storedSector]
+                    ))
                 }
             } else {
-                snapshot.issues.append("無法讀取板載資訊")
+                snapshot.issues.append(text.string("device.issue.onboard"))
             }
         }
         snapshot.isStateAuthoritative = authoritative && snapshot.hasCompleteState
@@ -175,11 +197,12 @@ nonisolated enum DeviceReader {
 ///
 /// The demo never touches IOKit: no manager, no service, no device.
 nonisolated enum DemoData {
-    static func snapshots() -> [DeviceSnapshot] {
-        [demoMX(), demoSuperstrike()]
+    static func snapshots(language: MouseLanguage) -> [DeviceSnapshot] {
+        [demoMX(language: language), demoSuperstrike(language: language)]
     }
 
-    static func demoMX() -> DeviceSnapshot {
+    static func demoMX(language: MouseLanguage) -> DeviceSnapshot {
+        let text = MouseLocalizer(language: language)
         let identity = DeviceIdentity(
             stableID: "sha256:demo00000000000a",
             model: .mxMaster4,
@@ -187,7 +210,7 @@ nonisolated enum DemoData {
             productID: TargetProducts.mxMaster4,
             transport: .bluetooth,
             deviceIndex: 0xFF,
-            productName: "MX Master 4 M（示範）"
+            productName: "MX Master 4 M"
         )
         var snapshot = DeviceSnapshot(identity: identity)
         snapshot.isDemo = true
@@ -200,7 +223,7 @@ nonisolated enum DemoData {
             HIDPPFeatureID.wheelControl: 18,
             HIDPPFeatureID.specialKeysAndMSEButtons: 13,
         ]
-        snapshot.battery = BatteryStatus(percentage: 90, charging: false, note: "示範資料")
+        snapshot.battery = BatteryStatus(percentage: 90, charging: false, note: text.string("app.demoData"))
         snapshot.dpi = DPIState(current: 3200, available: [200, 400, 800, 1600, 3200, 8000])
         snapshot.smartShift = SmartShiftState(
             mode: 1,
@@ -220,11 +243,12 @@ nonisolated enum DemoData {
             ReprogramControl(index: 3, cid: 0x0053, taskID: 0x0004, flags: 0x0531, position: 4, group: 2, groupMask: 0x04),
             ReprogramControl(index: 4, cid: 0x0056, taskID: 0x0005, flags: 0x0531, position: 5, group: 2, groupMask: 0x04),
         ]
-        snapshot.issues = ["示範模式：所有數值都是合成資料，未連接任何裝置。"]
+        snapshot.issues = [text.string("device.demo.issue")]
         return snapshot
     }
 
-    static func demoSuperstrike() -> DeviceSnapshot {
+    static func demoSuperstrike(language: MouseLanguage) -> DeviceSnapshot {
+        let text = MouseLocalizer(language: language)
         let identity = DeviceIdentity(
             stableID: "sha256:demo00000000000b",
             model: .superstrike,
@@ -232,7 +256,7 @@ nonisolated enum DemoData {
             productID: TargetProducts.superstrikeDirect,
             transport: .usb,
             deviceIndex: 0xFF,
-            productName: "PRO X2 SUPERSTRIKE（示範）"
+            productName: "PRO X2 SUPERSTRIKE"
         )
         var snapshot = DeviceSnapshot(identity: identity)
         snapshot.isDemo = true
@@ -243,7 +267,7 @@ nonisolated enum DemoData {
             HIDPPFeatureID.analogButtons: 2,
             HIDPPFeatureID.onboardProfiles: 4,
         ]
-        snapshot.battery = BatteryStatus(percentage: 100, charging: false, note: "示範資料")
+        snapshot.battery = BatteryStatus(percentage: 100, charging: false, note: text.string("app.demoData"))
         snapshot.hitsCapabilities = HitsCapabilities(buttonCount: 2, maxActuation: 10, maxRapidTrigger: 5, maxHaptics: 5)
         snapshot.hitsButtons = [
             HitsButtonConfig(button: 0, actuation: 5, rapidTrigger: 2, haptics: 3, rapidTriggerFlag: 0),
@@ -268,10 +292,10 @@ nonisolated enum DemoData {
             storedSector: 1,
             isRunning: true,
             enabledSectors: [1],
-            controlBytes: []
+            controlBytes: [], activeDPIIndex: 1
         )
         snapshot.profile = demoProfile()
-        snapshot.issues = ["示範模式：所有數值都是合成資料，未連接任何裝置。"]
+        snapshot.issues = [text.string("device.demo.issue")]
         return snapshot
     }
 
@@ -279,6 +303,8 @@ nonisolated enum DemoData {
     private static func demoProfile() -> ProfileSector {
         var bytes = [UInt8](repeating: 0, count: 255)
         bytes[0] = 3  // 1000 Hz
+        bytes[2] = 1
+        bytes.replaceSubrange(38..<44, with: [20,8,12,20,8,12])
         bytes[9] = 0x80; bytes[10] = 0x0C   // X = 3200
         bytes[11] = 0x80; bytes[12] = 0x0C  // Y = 3200
         // Factory button order: left, right, middle, back, forward.

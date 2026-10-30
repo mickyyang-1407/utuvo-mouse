@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+import UTUVOMouseLocalization
 
 /// The two mice this app drives.
 public enum MouseModel: String, Sendable, CaseIterable {
@@ -15,6 +16,26 @@ public enum DeviceTransportKind: String, Sendable {
     case usb = "USB"
     case receiver = "LIGHTSPEED 接收器"
     case unknown = "未知"
+}
+
+public extension MouseModel {
+    func displayTitle(language: MouseLanguage) -> String {
+        switch self {
+        case .mxMaster4, .superstrike: rawValue
+        case .receiver: MouseLocalizer(language: language).string("model.receiver")
+        case .unknown: MouseLocalizer(language: language).string("model.unknown")
+        }
+    }
+}
+
+public extension DeviceTransportKind {
+    func displayTitle(language: MouseLanguage) -> String {
+        switch self {
+        case .bluetooth, .usb: rawValue
+        case .receiver: MouseLocalizer(language: language).string("transport.receiver")
+        case .unknown: MouseLocalizer(language: language).string("transport.unknown")
+        }
+    }
 }
 
 /// Identity of one physical mouse.
@@ -123,6 +144,7 @@ public struct DeviceSnapshot: Sendable, Equatable, Identifiable {
                   plan.info.memoryModel == SuperstrikeService.supportedMemoryModel,
                   plan.info.profileFormat == SuperstrikeService.supportedProfileFormat,
                   plan.info.sectorSize == SuperstrikeService.supportedSectorSize,
+                  (!plan.isRunning || plan.activeDPIIndex != nil),
                   plan.controlBytes.count == plan.info.sectorSize,
                   ProfileSector(bytes: plan.controlBytes, sector: 0).hasValidCRC,
                   profile.bytes.count == plan.info.sectorSize,

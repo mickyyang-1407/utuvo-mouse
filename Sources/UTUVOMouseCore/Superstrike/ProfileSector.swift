@@ -1,4 +1,5 @@
 import Foundation
+import UTUVOMouseLocalization
 
 /// CRC-16/CCITT-FALSE — polynomial 0x1021, initial value 0xFFFF, no reflection,
 /// no final XOR. The Superstrike stores it big endian in the last two bytes of a
@@ -20,24 +21,19 @@ public enum CRC16CCITT {
     }
 }
 
-/// Byte offsets inside a Superstrike profile sector.
-///
-/// The Superstrike deviates from the generic layout: the button table starts at
-/// 48 (not 32) and the live X/Y DPI words are the last two of the five DPI words
-/// (bytes 9...10 and 11...12).
+/// Verified format-8 layout from Nanostrike. DPI is five 5-byte stages;
+/// byte 2 selects the default. Byte 1 is not the selected stage.
 public enum ProfileLayout {
     public static let reportRateOffset = 0
-    public static let resolutionIndexOffset = 1
-    public static let shiftResolutionOffset = 2
-    public static let dpiWordsOffset = 3
-    public static let dpiXOffset = 9
-    public static let dpiYOffset = 11
-    public static let buttonsOffset = 48
+    public static let resolutionIndexOffset = 2
+    public static let dpiWordsOffset = 4
+    public static let dpiStageCount = 5
+    public static let analogButtonsOffset = 0x26
+    public static let analogButtonCount = 2
+    public static let buttonsOffset = 0x30
     public static let buttonSlotSize = 4
-    public static let buttonSlotCount = 16
-    public static let gShiftOffset = 112
-    public static let nameOffset = 160
-    public static let nameLength = 48
+    public static let buttonSlotCount = 5
+    public static let gShiftOffset = 0x44
     /// `Hz = 125 << byte`
     public static let reportRates = [125, 250, 500, 1000, 2000, 4000, 8000]
     public static let maximumDPI = 44_000
@@ -137,6 +133,27 @@ public struct ButtonAction: Equatable, Sendable {
         case .raw: "自訂 " + raw.map { String(format: "%02X", $0) }.joined(separator: " ")
         }
     }
+
+    /// A catalog-backed summary for user-visible surfaces. The legacy
+    /// `summary` remains available to callers that depend on its stable output.
+    public func localizedSummary(language: MouseLanguage) -> String {
+        let localizer = MouseLocalizer(language: language)
+        let code = String(format: "0x%X", code)
+        return switch kind {
+        case .disabled:
+            localizer.string("profile.action.disabled")
+        case .mouse:
+            localizer.string("profile.action.mouse", arguments: [code])
+        case .key:
+            localizer.string("profile.action.key", arguments: [code])
+        case .consumer:
+            localizer.string("profile.action.consumer", arguments: [code])
+        case .function:
+            localizer.string("profile.action.function", arguments: [code])
+        case .raw:
+            localizer.string("profile.action.raw", arguments: [raw.map { String(format: "%02X", $0) }.joined(separator: " ")])
+        }
+    }
 }
 
 /// One profile sector of the Superstrike's onboard memory.
@@ -146,9 +163,13 @@ public struct ProfileSector: Equatable, Sendable {
     /// The memory sector this content came from.
     public var sector: Int
 
-    public init(bytes: [UInt8], sector: Int) {
+    /// The live stage from 0x8100 fn0B, when available. Nil decodes the default.
+    public var activeDPIIndex: Int?
+
+    public init(bytes: [UInt8], sector: Int, activeDPIIndex: Int? = nil) {
         self.bytes = bytes
         self.sector = sector
+        self.activeDPIIndex = activeDPIIndex
     }
 
     public var count: Int { bytes.count }
@@ -156,12 +177,32 @@ public struct ProfileSector: Equatable, Sendable {
     public var reportRateByte: UInt8 { bytes[ProfileLayout.reportRateOffset] }
     public var reportRateHz: Int { ProfileLayout.reportRateHz(forByte: reportRateByte) }
 
-    public var dpiX: Int {
-        Int(bytes[ProfileLayout.dpiXOffset]) | (Int(bytes[ProfileLayout.dpiXOffset + 1]) << 8)
+    public var selectedDPIIndex: Int {
+        activeDPIIndex ?? (bytes.count > ProfileLayout.resolutionIndexOffset ? Int(bytes[ProfileLayout.resolutionIndexOffset]) : -1)
     }
 
-    public var dpiY: Int {
-        Int(bytes[ProfileLayout.dpiYOffset]) | (Int(bytes[ProfileLayout.dpiYOffset + 1]) << 8)
+    public var dpiStages: [DPIStage] {
+        (0..<ProfileLayout.dpiStageCount).compactMap { index in
+            let offset = ProfileLayout.dpiWordsOffset + index * DPIStage.byteCount
+            guard offset + DPIStage.byteCount <= bytes.count else { return nil }
+            return DPIStage(decoding: bytes[offset..<(offset + DPIStage.byteCount)])
+        }
+    }
+
+    private var selectedDPIStage: DPIStage? {
+        let stages = dpiStages
+        return stages.indices.contains(selectedDPIIndex) ? stages[selectedDPIIndex] : nil
+    }
+    public var dpiX: Int { selectedDPIStage.map { Int($0.x) } ?? 0 }
+    public var dpiY: Int { selectedDPIStage.map { Int($0.y) } ?? 0 }
+
+    public var hitsButtons: [HitsButtonConfig] {
+        (0..<ProfileLayout.analogButtonCount).compactMap { button in
+            let offset = ProfileLayout.analogButtonsOffset + button * AnalogButtonRecord.byteCount
+            guard offset + AnalogButtonRecord.byteCount <= bytes.count,
+                  let record = AnalogButtonRecord(decoding: bytes[offset..<(offset + AnalogButtonRecord.byteCount)]) else { return nil }
+            return HitsButtonConfig(button: button, record: record)
+        }
     }
 
     /// The stored CRC, big endian in the last two bytes.
@@ -177,22 +218,10 @@ public struct ProfileSector: Equatable, Sendable {
         return expected == storedCRC
     }
 
-    /// The profile name, UTF-16LE.
-    public var name: String {
-        guard bytes.count >= ProfileLayout.nameOffset + ProfileLayout.nameLength else { return "" }
-        var units: [UInt16] = []
-        var index = ProfileLayout.nameOffset
-        while index + 1 < ProfileLayout.nameOffset + ProfileLayout.nameLength {
-            let unit = UInt16(bytes[index]) | (UInt16(bytes[index + 1]) << 8)
-            if unit == 0x0000 || unit == 0xFFFF { break }
-            units.append(unit)
-            index += 2
-        }
-        return String(decoding: units, as: UTF16.self)
-            .trimmingCharacters(in: .whitespaces)
-    }
+    /// Format 8 has no verified profile-name field. Do not decode unknown bytes.
+    public var name: String { "" }
 
-    /// The 16 button slots of this profile.
+    /// The five verified main button records.
     public var buttonSlots: [ButtonAction] {
         (0..<ProfileLayout.buttonSlotCount).map { slot in
             let offset = ProfileLayout.buttonsOffset + slot * ProfileLayout.buttonSlotSize
@@ -211,23 +240,58 @@ public struct ProfileSector: Equatable, Sendable {
         return copy
     }
 
-    /// Returns a copy with the X/Y DPI words replaced. Every other byte is kept.
+    /// Patches the selected stage, preserving its lift-off byte and other stages.
+    /// Saves the same stage as default so the requested DPI survives reconnect.
     public func settingDPI(x: Int, y: Int) throws -> ProfileSector {
         guard (100...ProfileLayout.maximumDPI).contains(x), (100...ProfileLayout.maximumDPI).contains(y) else {
-            throw HIDPPError.unsupported("DPI 必須介於 100 與 \(ProfileLayout.maximumDPI)")
+            throw HIDPPError.localized(key: "error.profile.dpiRange", arguments: ["100", String(ProfileLayout.maximumDPI)])
         }
+        guard bytes.count == 255, var stage = selectedDPIStage else {
+            throw HIDPPError.malformedReport("invalid selected DPI stage")
+        }
+        stage.x = UInt16(x); stage.y = UInt16(y)
+        let offset = ProfileLayout.dpiWordsOffset + selectedDPIIndex * DPIStage.byteCount
         var copy = self
-        copy.bytes[ProfileLayout.dpiXOffset] = UInt8(truncatingIfNeeded: x)
-        copy.bytes[ProfileLayout.dpiXOffset + 1] = UInt8(truncatingIfNeeded: x >> 8)
-        copy.bytes[ProfileLayout.dpiYOffset] = UInt8(truncatingIfNeeded: y)
-        copy.bytes[ProfileLayout.dpiYOffset + 1] = UInt8(truncatingIfNeeded: y >> 8)
+        copy.bytes.replaceSubrange(offset..<(offset + DPIStage.byteCount), with: stage.encoded)
+        copy.bytes[ProfileLayout.resolutionIndexOffset] = UInt8(selectedDPIIndex)
+        return copy
+    }
+
+    /// Copies known live values into this sector's own record, preserving its
+    /// reserved bits. Used to save current HITS without resetting the other key.
+    public func settingHITS(_ config: HitsButtonConfig) throws -> ProfileSector {
+        guard bytes.count == 255, hitsButtons.indices.contains(config.button) else {
+            throw HIDPPError.localized(key: "error.features.hitsLeftRightOnly", arguments: [])
+        }
+        _ = try config.validatedRecord()
+        var stored = hitsButtons[config.button]
+        stored.actuation = config.actuation
+        stored.rapidTrigger = config.rapidTrigger
+        stored.rapidTriggerEnabled = config.rapidTriggerEnabled
+        stored.haptics = config.haptics
+        let offset = ProfileLayout.analogButtonsOffset + config.button * AnalogButtonRecord.byteCount
+        var copy = self
+        copy.bytes.replaceSubrange(offset..<(offset + AnalogButtonRecord.byteCount), with: try stored.validatedRecord().encoded)
+        return copy
+    }
+
+    /// Uses the sector's own reserved bits, never a live reply's reserved bits.
+    public func settingHITS(_ draft: HIDPPClient.HitsDraft) throws -> ProfileSector {
+        guard bytes.count == 255, (0..<ProfileLayout.analogButtonCount).contains(draft.button) else {
+            throw HIDPPError.localized(key: "error.features.hitsLeftRightOnly", arguments: [])
+        }
+        let current = hitsButtons[draft.button]
+        let updated = try draft.applying(to: current)
+        let offset = ProfileLayout.analogButtonsOffset + draft.button * AnalogButtonRecord.byteCount
+        var copy = self
+        copy.bytes.replaceSubrange(offset..<(offset + AnalogButtonRecord.byteCount), with: try updated.validatedRecord().encoded)
         return copy
     }
 
     /// Returns a copy with the report rate byte replaced.
     public func settingReportRate(hz: Int) throws -> ProfileSector {
-        guard let byte = ProfileLayout.reportRateByte(forHz: hz) else {
-            throw HIDPPError.unsupported("不支援的回報率 \(hz) Hz")
+        guard ProfileLayout.reportRates.contains(hz), let byte = ProfileLayout.reportRateByte(forHz: hz) else {
+            throw HIDPPError.localized(key: "error.profile.reportRate", arguments: [String(hz)])
         }
         var copy = self
         copy.bytes[ProfileLayout.reportRateOffset] = byte
@@ -237,11 +301,11 @@ public struct ProfileSector: Equatable, Sendable {
     /// Returns a copy with one button slot replaced. Every other byte is kept.
     public func settingButton(slot: Int, action: ButtonAction) throws -> ProfileSector {
         guard slot >= 0, slot < ProfileLayout.buttonSlotCount else {
-            throw HIDPPError.unsupported("按鍵槽位 \(slot) 超出範圍")
+            throw HIDPPError.localized(key: "error.profile.buttonSlotRange", arguments: [String(slot)])
         }
         let offset = ProfileLayout.buttonsOffset + slot * ProfileLayout.buttonSlotSize
         guard offset + 4 <= bytes.count else {
-            throw HIDPPError.unsupported("按鍵表超出此 sector 範圍")
+            throw HIDPPError.localized(key: "error.profile.buttonTableRange", arguments: [])
         }
         var copy = self
         let encoded = action.encoded()

@@ -1,4 +1,5 @@
 import Foundation
+import UTUVOMouseLocalization
 
 /// The state a device had before this app diverted a control.
 ///
@@ -105,6 +106,23 @@ public enum DiversionError: Error, Equatable, Sendable, LocalizedError {
     case reconnectRequired
     /// macOS has not granted the accessibility permission.
     case accessibilityRequired
+
+    public func message(language: MouseLanguage) -> String {
+        let text = MouseLocalizer(language: language)
+        return switch self {
+        case .ownershipConflict(let cid): text.string("error.diversion.ownership", arguments: [String(format: "0x%04X", cid)])
+        case .notAccepted(let cid): text.string("error.diversion.notAccepted", arguments: [String(format: "0x%04X", cid)])
+        case .notDivertable(let cid): text.string("error.diversion.notDivertable", arguments: [String(format: "0x%04X", cid)])
+        case .mainButton(let cid): text.string("error.diversion.mainButton", arguments: [String(format: "0x%04X", cid)])
+        case .notAllowed(let cid): text.string("error.diversion.notAllowed", arguments: [String(format: "0x%04X", cid)])
+        case .unknownControl(let cid): text.string("error.diversion.unknown", arguments: [String(format: "0x%04X", cid)])
+        case .rollbackUnconfirmed(let cids): text.string("error.diversion.rollback", arguments: [cids.map { String(format: "0x%04X", $0) }.joined(separator: ", ")])
+        case .restoreUnconfirmed(let cid): text.string("error.diversion.restore", arguments: [String(format: "0x%04X", cid)])
+        case .disableFirstRequired: text.string("error.diversion.disableFirst")
+        case .reconnectRequired: text.string("error.diversion.reconnect")
+        case .accessibilityRequired: text.string("error.diversion.accessibility")
+        }
+    }
 
     public var errorDescription: String? {
         switch self {

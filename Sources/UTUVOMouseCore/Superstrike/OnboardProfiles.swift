@@ -50,8 +50,10 @@ public enum SectorWriteOutcome: Sendable, Equatable {
     /// The write could not be confirmed. The device content is unknown — it has
     /// to be read again, never retried blindly.
     case uncertain(String)
+    case uncertainReason(SuperstrikeFailure)
     /// The write never reached the device.
     case failedBeforeBegin(String)
+    case failedBeforeBeginReason(SuperstrikeFailure)
 }
 
 /// Reads and writes the Superstrike's onboard profile memory (feature 0x8100).
@@ -99,10 +101,19 @@ public struct OnboardProfilesClient: Sendable {
         return Int(value)
     }
 
+    /// The actual selected DPI stage (format 8), independent of its default.
+    public func readActiveResolution() async throws -> Int {
+        let data = try await client.request(featureIndex: feature.index, function: 0x0B, shortFallback: true)
+        guard let index = data.first, index < 5 else {
+            throw HIDPPError.malformedReport("invalid active DPI stage")
+        }
+        return Int(index)
+    }
+
     /// Switches the control mode (fn1). Only ever called from an explicit user action.
     public func setMode(_ mode: Int) async throws {
         guard mode == 1 || mode == 2 else {
-            throw HIDPPError.unsupported("板載模式只能是 1（板載）或 2（主控）")
+            throw HIDPPError.localized(key: "error.profile.invalidMode", arguments: [])
         }
         _ = try await client.request(featureIndex: feature.index, function: 1, payload: [UInt8(mode)])
     }
@@ -215,7 +226,7 @@ public struct OnboardProfilesClient: Sendable {
         if let first = headers.first {
             return (first.sector, false)
         }
-        throw HIDPPError.unsupported("裝置沒有可用的內存設定檔")
+        throw HIDPPError.localized(key: "error.profile.noAvailable", arguments: [])
     }
 
     /// Writes a sector (fn6 begin, fn7 chunk, fn8 commit) and verifies it by
@@ -225,7 +236,7 @@ public struct OnboardProfilesClient: Sendable {
     /// `.uncertain`: the device content is then unknown and must be read again.
     public func writeSector(_ sector: Int, bytes: [UInt8]) async throws -> SectorWriteOutcome {
         guard bytes.count >= 2 else {
-            throw HIDPPError.unsupported("sector 內容過短")
+            throw HIDPPError.localized(key: "error.profile.sectorTooShort", arguments: [])
         }
         let length = bytes.count
         do {
@@ -242,7 +253,7 @@ public struct OnboardProfilesClient: Sendable {
                 ]
             )
         } catch let error as HIDPPError {
-            if case .timeout = error { return .uncertain("begin 寫入逾時") }
+            if case .timeout = error { return .uncertainReason(.localized(key: "error.profile.beginTimeout", arguments: [])) }
             throw error
         }
 
@@ -256,7 +267,7 @@ public struct OnboardProfilesClient: Sendable {
                     payload: Array(bytes[offset..<end])
                 )
             } catch let error as HIDPPError {
-                return .uncertain("資料區塊寫入失敗：\(error.localizedDescription)")
+                return .uncertainReason(.causedBy(key: "error.profile.chunkWriteFailed", arguments: [], cause: .hidpp(error)))
             }
             offset = end
         }
@@ -264,12 +275,14 @@ public struct OnboardProfilesClient: Sendable {
         do {
             _ = try await client.request(featureIndex: feature.index, function: 8)
         } catch let error as HIDPPError {
-            return .uncertain("提交寫入失敗：\(error.localizedDescription)")
+            return .uncertainReason(.causedBy(key: "error.profile.commitFailed", arguments: [], cause: .hidpp(error)))
         }
 
         guard let readBack = try? await readSector(sector, size: length) else {
-            return .uncertain("寫入後讀回失敗")
+            return .uncertainReason(.localized(key: "error.profile.readBackFailed", arguments: []))
         }
-        return readBack == bytes ? .verified : .uncertain("寫入後讀回內容不一致")
+        return readBack == bytes
+            ? .verified
+            : .uncertainReason(.localized(key: "error.profile.readBackMismatch", arguments: []))
     }
 }

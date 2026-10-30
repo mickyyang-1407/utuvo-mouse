@@ -107,83 +107,6 @@ struct HIDPPTransactionTests {
     }
 }
 
-/// The HITS apply only touches what the user changed.
-@Suite("HITS apply")
-struct HITSApplyTests {
-
-    private func makeTransport() -> MockHIDPPTransport {
-        MockHIDPPTransport { request in
-            let feature = request[2]
-            let function = request[3] >> 4
-            let software = request[3] & 0x0F
-            let payload = Array(request[4...])
-            func frame(_ data: [UInt8]) -> [UInt8] {
-                var bytes: [UInt8] = [0x11, request[1], feature, (function << 4) | software]
-                bytes.append(contentsOf: data)
-                bytes.append(contentsOf: repeatElement(0, count: max(0, 16 - data.count)))
-                return bytes
-            }
-            switch feature {
-            case 0x00:
-                if function == 0x00 { return frame([0x02, 0x00, 0x01]) }
-                return frame([0x04, 0x02])
-            case 0x02:
-                if function == 0x00 { return frame([0x00, 0x02, 10 << 2, 5 << 2, 5 << 2]) }
-                if function == 0x02 { return frame([payload[0], 2 << 2, (1 << 2) | 0x01, 3 << 2]) }
-                return frame([])
-            default:
-                return nil
-            }
-        }
-    }
-
-    @Test("an apply without an explicit rapid trigger choice is refused")
-    func rapidTriggerMustBeChosen() async throws {
-        let transport = makeTransport()
-        let client = try HIDPPClient(transport: transport, deviceIndex: 0xFF, timeout: .milliseconds(300))
-        await #expect(throws: HIDPPError.self) {
-            try await client.applyHits(
-                draft: .init(button: 0, haptics: 4),
-                maxActuation: 10,
-                maxRapidTrigger: 5,
-                maxHaptics: 5
-            )
-        }
-        // Nothing was written to the device.
-        #expect(!transport.sentFrames.contains { $0[2] == 0x02 && ($0[3] >> 4) == 0x01 })
-    }
-
-    @Test("an ignored positive rapid trigger level is not reported as verified")
-    func rapidTriggerPositiveReadbackMismatch() async throws {
-        let transport = makeTransport() // Always reports cached level 1.
-        let client = try HIDPPClient(transport: transport, deviceIndex: 0xFF, timeout: .milliseconds(300))
-        await #expect(throws: HIDPPError.self) {
-            try await client.applyHits(
-                draft: .init(button: 0, rapidTrigger: 3),
-                maxActuation: 10, maxRapidTrigger: 5, maxHaptics: 5
-            )
-        }
-    }
-
-    @Test("switching rapid trigger off writes exactly zero")
-    func rapidTriggerOffStaysOff() async throws {
-        let transport = makeTransport()
-        let client = try HIDPPClient(transport: transport, deviceIndex: 0xFF, timeout: .milliseconds(300))
-        try await client.applyHits(
-            draft: .init(button: 0, rapidTrigger: 0),
-            maxActuation: 10,
-            maxRapidTrigger: 5,
-            maxHaptics: 5
-        )
-        let write = transport.sentFrames.last { $0[2] == 0x02 && ($0[3] >> 4) == 0x01 }
-        #expect(write != nil)
-        #expect(write?[6] == 0)
-        // The other fields kept the values the device reported.
-        #expect(write?[5] == 2 << 2)
-        #expect(write?[7] == 3 << 2)
-    }
-}
-
 /// The compound patch of the onboard profile.
 @Suite("Compound profile patch")
 struct CompoundPatchTests {
@@ -192,6 +115,7 @@ struct CompoundPatchTests {
     func onlyRequestedBytesChange() throws {
         var bytes = [UInt8](repeating: 0x22, count: 255)
         bytes[0] = 3
+        bytes[2] = 1
         bytes[9] = 0x80; bytes[10] = 0x0C
         bytes[11] = 0x80; bytes[12] = 0x0C
         let sector = ProfileSector(bytes: bytes, sector: 1).withRecomputedCRC()

@@ -1,4 +1,5 @@
 import Foundation
+import UTUVOMouseLocalization
 
 /// An immutable copy of everything that is about to be changed on the device.
 public struct SectorBackup: Codable, Sendable, Equatable {
@@ -91,6 +92,13 @@ public struct FileBackupStore: BackupStoring {
 /// Errors of the backup store.
 public enum BackupError: Error, Equatable, Sendable, LocalizedError {
     case unreadable(URL)
+
+    public func message(language: MouseLanguage) -> String {
+        let text = MouseLocalizer(language: language)
+        return switch self {
+        case .unreadable(let url): text.string("error.backup.unreadable", arguments: [url.lastPathComponent])
+        }
+    }
 
     public var errorDescription: String? {
         switch self {

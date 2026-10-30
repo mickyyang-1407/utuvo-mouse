@@ -180,7 +180,7 @@ public struct ReprogramControlsClient: Sendable {
         }
         let echoed = (UInt16(data[0]) << 8) | UInt16(data[1])
         guard echoed == cid else {
-            throw HIDPPError.unsupported("裝置回報的控制 ID 與請求不符")
+            throw HIDPPError.localized(key: "error.features.controlIDMismatch", arguments: [])
         }
         let remapped = data.count >= 5 ? (UInt16(data[3]) << 8) | UInt16(data[4]) : 0
         return ControlReporting(

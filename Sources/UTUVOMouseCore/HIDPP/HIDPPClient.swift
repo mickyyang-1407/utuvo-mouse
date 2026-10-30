@@ -209,7 +209,11 @@ public final class HIDPPClient: @unchecked Sendable {
         case .success(let data):
             pending.complete(key, .success(data))
         case .failure(let reason):
-            pending.complete(key, .failure(HIDPPError.deviceError(reason: reason)))
+            if frame.count > 2, frame[2] == HIDPPErrorMarker.hidpp1.rawValue, reason == 0x08 {
+                pending.complete(key, .failure(HIDPPError.localized(key: "error.hidpp.receiverUnavailable", arguments: [])))
+            } else {
+                pending.complete(key, .failure(HIDPPError.deviceError(reason: reason)))
+            }
         }
     }
 }

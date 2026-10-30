@@ -2,6 +2,7 @@ import Foundation
 import IOKit
 import IOKit.hid
 import UTUVOMouseCore
+import UTUVOMouseLocalization
 
 /// Facts about one HID interface, read from the IORegistry.
 public struct HIDInterfaceDescriptor: Hashable, Sendable {
@@ -98,6 +99,7 @@ public final class IOKitHIDTransport: HIDPPTransport, @unchecked Sendable {
     private let lock = NSLock()
     private var handler: (@Sendable ([UInt8]) -> Void)?
     private var isOpen = false
+    private var receiverAnnounced = false
 
     public init(device: IOHIDDevice) {
         self.device = device
@@ -148,15 +150,29 @@ public final class IOKitHIDTransport: HIDPPTransport, @unchecked Sendable {
 
     public func send(_ bytes: [UInt8]) throws {
         guard let reportID = bytes.first else {
-            throw HIDPPError.transportFailure("空的 HID++ 報告")
+            throw HIDPPError.localized(key: "error.transport.emptyReport", arguments: [])
         }
         let result = bytes.withUnsafeBufferPointer { pointer -> IOReturn in
             guard let base = pointer.baseAddress else { return IOReturn(bitPattern: 0xE00002C2) }
             return IOHIDDeviceSetReport(device, kIOHIDReportTypeOutput, CFIndex(reportID), base, pointer.count)
         }
         guard result == kIOReturnSuccess else {
-            throw HIDPPError.transportFailure(String(format: "IOHIDDeviceSetReport 失敗 (0x%08X)", UInt32(bitPattern: result)))
+            throw HIDPPError.localized(
+                key: "error.transport.setReport",
+                arguments: [String(format: "0x%08X", UInt32(bitPattern: result))]
+            )
         }
+    }
+
+    /// Requests paired-device arrival notifications once per receiver connection.
+    /// This changes no pairing or mouse setting. A sleeping mouse may still be absent.
+    public func announceReceiverIfNeeded(force: Bool = false) async throws {
+        guard descriptor.productID == TargetProducts.receiver else { return }
+        let needed = lock.withLock { force || !receiverAnnounced }
+        guard needed else { return }
+        try send([0x10, 0xFF, 0x80, 0x02, 0x02, 0x00, 0x00])
+        lock.withLock { receiverAnnounced = true }
+        try await Task.sleep(for: .milliseconds(400))
     }
 
     public func setReportHandler(_ handler: @escaping @Sendable ([UInt8]) -> Void) {
@@ -196,6 +212,37 @@ public enum IOKitHIDError: Error, Equatable, Sendable, LocalizedError {
             return "macOS 拒絕存取此 HID 裝置。"
         }
     }
+
+    public var accessFailure: HIDAccessFailure {
+        switch self {
+        case .notPermitted: .inputMonitoringRequired
+        case .openFailed(let code) where code == 0xE000_02E2 || code == 0xE000_02C1: .inputMonitoringRequired
+        case .openFailed(let code): .openFailed(code)
+        }
+    }
+}
+
+public enum HIDAccessFailure: Equatable, Sendable {
+    case inputMonitoringRequired
+    case openFailed(UInt32)
+    case unavailable
+
+    public var requiresInputMonitoring: Bool {
+        if case .inputMonitoringRequired = self { return true }
+        return false
+    }
+
+    public func message(language: MouseLanguage) -> String {
+        let localizer = MouseLocalizer(language: language)
+        return switch self {
+        case .inputMonitoringRequired:
+            localizer.string("device.permission.denied")
+        case .openFailed(let code):
+            localizer.string("device.hid.openFailed", arguments: [String(format: "0x%08X", code)])
+        case .unavailable:
+            localizer.string("device.hid.unavailable")
+        }
+    }
 }
 
 /// Finds the two supported Logitech mice and keeps their HID++ interfaces open.
@@ -210,7 +257,7 @@ public final class LogitechHIDService: @unchecked Sendable {
     private let lock = NSLock()
     private var transports: [String: IOKitHIDTransport] = [:]
     private var changeHandler: (@Sendable ([IOKitHIDTransport]) -> Void)?
-    private var errorHandler: (@Sendable (HIDInterfaceDescriptor, String) -> Void)?
+    private var errorHandler: (@Sendable (HIDInterfaceDescriptor, HIDAccessFailure) -> Void)?
     private var isRunning = false
 
     public init() {
@@ -225,7 +272,7 @@ public final class LogitechHIDService: @unchecked Sendable {
     }
 
     /// Called when an interface could not be opened.
-    public func onError(_ handler: @escaping @Sendable (HIDInterfaceDescriptor, String) -> Void) {
+    public func onError(_ handler: @escaping @Sendable (HIDInterfaceDescriptor, HIDAccessFailure) -> Void) {
         lock.withLock { errorHandler = handler }
     }
 
@@ -309,7 +356,8 @@ public final class LogitechHIDService: @unchecked Sendable {
             try transport.open()
         } catch {
             let handler = lock.withLock { errorHandler }
-            handler?(descriptor, error.localizedDescription)
+            let failure = (error as? IOKitHIDError)?.accessFailure ?? .unavailable
+            handler?(descriptor, failure)
             return
         }
         lock.withLock { transports[key] = transport }

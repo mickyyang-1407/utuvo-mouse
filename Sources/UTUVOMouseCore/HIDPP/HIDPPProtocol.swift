@@ -1,4 +1,5 @@
 import Foundation
+import UTUVOMouseLocalization
 
 /// HID++ report identifiers (byte 0 of every report).
 public enum HIDPPReportID: UInt8, Sendable, CaseIterable {
@@ -91,6 +92,7 @@ public enum HIDPPError: Error, Equatable, Sendable, LocalizedError {
     case deviceError(reason: UInt8)
     case transportFailure(String)
     case unsupported(String)
+    case localized(key: String, arguments: [String])
 
     public var errorDescription: String? {
         switch self {
@@ -104,12 +106,45 @@ public enum HIDPPError: Error, Equatable, Sendable, LocalizedError {
             "傳輸失敗：\(detail)"
         case .unsupported(let detail):
             "不支援：\(detail)"
+        case .localized(let key, let arguments):
+            MouseLocalizer(language: .traditionalChinese).string(key, arguments: arguments)
+        }
+    }
+
+    public func localizedMessage(language: MouseLanguage) -> String {
+        let text = MouseLocalizer(language: language)
+        return switch self {
+        case .malformedReport(let detail): text.string("error.hidpp.malformed", arguments: [detail])
+        case .timeout(let feature, let function):
+            text.string("error.hidpp.timeout", arguments: [String(format: "0x%02X", feature), String(format: "0x%02X", function)])
+        case .deviceError(let reason): text.string("error.hidpp.device", arguments: [HIDPPErrorCode.localizedReason(reason, language: language)])
+        case .transportFailure(let detail): text.string("error.hidpp.transport", arguments: [detail])
+        case .unsupported(let detail): text.string("error.hidpp.unsupported", arguments: [detail])
+        case .localized(let key, let arguments): text.string(key, arguments: arguments)
         }
     }
 }
 
 /// Names for the HID++ error reason code (byte 5 of an error reply).
 public enum HIDPPErrorCode {
+    public static func localizedReason(_ code: UInt8, language: MouseLanguage) -> String {
+        let key: String
+        switch code {
+        case 0x00: key = "error.hidpp.reason.ok"
+        case 0x01: key = "error.hidpp.reason.unknown"
+        case 0x02: key = "error.hidpp.reason.parameter"
+        case 0x03: key = "error.hidpp.reason.range"
+        case 0x04: key = "error.hidpp.reason.hardware"
+        case 0x05: key = "error.hidpp.reason.internal"
+        case 0x06: key = "error.hidpp.reason.index"
+        case 0x07: key = "error.hidpp.reason.feature"
+        case 0x08: key = "error.hidpp.reason.busy"
+        case 0x09: key = "error.hidpp.reason.unsupported"
+        default: return String(format: "0x%02X", code)
+        }
+        return MouseLocalizer(language: language).string(key)
+    }
+
     public static func reason(_ code: UInt8) -> String {
         switch code {
         case 0x00: "無錯誤"

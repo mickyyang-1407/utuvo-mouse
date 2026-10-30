@@ -1,4 +1,5 @@
 import Foundation
+import UTUVOMouseLocalization
 
 /// Battery state read from the unified battery feature (0x1004).
 public struct BatteryStatus: Sendable, Equatable {
@@ -7,14 +8,22 @@ public struct BatteryStatus: Sendable, Equatable {
     public var charging: Bool?
     /// Why a value is unknown.
     public var note: String?
+    /// Catalog key for an app-owned diagnostic note, when applicable.
+    public var noteLocalizationKey: String?
 
-    public init(percentage: Int? = nil, charging: Bool? = nil, note: String? = nil) {
+    public init(percentage: Int? = nil, charging: Bool? = nil, note: String? = nil, noteLocalizationKey: String? = nil) {
         self.percentage = percentage
         self.charging = charging
         self.note = note
+        self.noteLocalizationKey = noteLocalizationKey
     }
 
-    public static let unknown = BatteryStatus(note: "尚未讀取")
+    public func message(language: MouseLanguage) -> String? {
+        if let noteLocalizationKey { return MouseLocalizer(language: language).string(noteLocalizationKey) }
+        return note
+    }
+
+    public static let unknown = BatteryStatus(noteLocalizationKey: "device.battery.note.notRead")
 }
 
 /// DPI state read from the classic adjustable DPI feature (0x2201).
@@ -119,24 +128,66 @@ public struct HitsCapabilities: Sendable, Equatable {
     }
 }
 
-/// One analog button's settings (0x1B0C).
+/// One analog button's live or stored HITS settings.
 public struct HitsButtonConfig: Sendable, Equatable {
     public var button: Int
-    /// Actuation point, 1...10.
     public var actuation: Int
-    /// Rapid trigger sensitivity, 0 = off, 1...5.
+    /// Sensitivity 1...5, including when rapid trigger is disabled.
     public var rapidTrigger: Int
-    /// Click haptic intensity, 0...5.
     public var haptics: Int
-    /// Firmware managed bit in the rapid trigger byte; it must survive a write.
+    /// Bit 0 is the enable switch; it is independent of sensitivity.
     public var rapidTriggerFlag: UInt8
+    private var original: AnalogButtonRecord
+
+    public var rapidTriggerEnabled: Bool {
+        get { rapidTriggerFlag & 1 != 0 }
+        set { rapidTriggerFlag = newValue ? 1 : 0 }
+    }
 
     public init(button: Int, actuation: Int, rapidTrigger: Int, haptics: Int, rapidTriggerFlag: UInt8 = 0) {
         self.button = button
         self.actuation = actuation
         self.rapidTrigger = rapidTrigger
         self.haptics = haptics
-        self.rapidTriggerFlag = rapidTriggerFlag
+        self.rapidTriggerFlag = rapidTriggerFlag & 1
+        self.original = AnalogButtonRecord(actuationPoint: 1, rapidTriggerEnabled: false, rapidTriggerSensitivity: 1, hapticLevel: 0)
+    }
+
+    public init(button: Int, record: AnalogButtonRecord) {
+        self.button = button
+        self.actuation = Int(record.actuationPoint)
+        self.rapidTrigger = Int(record.rapidTriggerSensitivity)
+        self.haptics = Int(record.hapticLevel)
+        self.rapidTriggerFlag = record.rapidTriggerEnabled ? 1 : 0
+        self.original = record
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.button == rhs.button && lhs.actuation == rhs.actuation
+            && lhs.rapidTrigger == rhs.rapidTrigger && lhs.haptics == rhs.haptics
+            && lhs.rapidTriggerEnabled == rhs.rapidTriggerEnabled
+    }
+
+    /// Starts from the bytes of this record, preserving all reserved bits.
+    public func validatedRecord(maxActuation: Int = 10, maxRapidTrigger: Int = 5, maxHaptics: Int = 5) throws -> AnalogButtonRecord {
+        guard (0...1).contains(button) else {
+            throw HIDPPError.localized(key: "error.features.hitsLeftRightOnly", arguments: [])
+        }
+        guard maxActuation >= 1, (1...min(maxActuation, 10)).contains(actuation) else {
+            throw HIDPPError.localized(key: "error.features.hitsActuationRange", arguments: [String(min(maxActuation, 10))])
+        }
+        guard maxRapidTrigger >= 1, (1...min(maxRapidTrigger, 5)).contains(rapidTrigger) else {
+            throw HIDPPError.localized(key: "error.features.hitsRapidRange", arguments: [String(min(maxRapidTrigger, 5))])
+        }
+        guard maxHaptics >= 0, (0...min(maxHaptics, 5)).contains(haptics) else {
+            throw HIDPPError.localized(key: "error.features.hitsHapticsRange", arguments: [String(min(maxHaptics, 5))])
+        }
+        var record = original
+        record.actuationPoint = UInt8(actuation)
+        record.rapidTriggerSensitivity = UInt8(rapidTrigger)
+        record.rapidTriggerEnabled = rapidTriggerEnabled
+        record.hapticLevel = UInt8(haptics)
+        return record
     }
 }
 
@@ -183,12 +234,12 @@ extension HIDPPClient {
     /// knows the charge level; otherwise the value stays unknown.
     public func readBattery() async throws -> BatteryStatus {
         guard let feature = try await resolveFeature(HIDPPFeatureID.unifiedBattery) else {
-            return BatteryStatus(note: "此裝置沒有統一電池功能 (0x1004)")
+            return BatteryStatus(noteLocalizationKey: "device.battery.note.noFeature")
         }
         let capabilities = try await request(featureIndex: feature.index, function: 0, shortFallback: true)
         let status = try await request(featureIndex: feature.index, function: 1, shortFallback: true)
         guard !status.isEmpty else {
-            return BatteryStatus(note: "電池狀態回應為空")
+            return BatteryStatus(noteLocalizationKey: "device.battery.note.empty")
         }
         let reportsPercentage = capabilities.first.map { $0 & 0x01 != 0 } ?? false
         let percentage = reportsPercentage ? Int(status[0]) : nil
@@ -196,7 +247,7 @@ extension HIDPPClient {
         return BatteryStatus(
             percentage: percentage,
             charging: charging,
-            note: reportsPercentage ? nil : "裝置未回報電量百分比"
+            noteLocalizationKey: reportsPercentage ? nil : "device.battery.note.noPercentage"
         )
     }
 
@@ -263,14 +314,14 @@ extension HIDPPClient {
     /// checked against the list first.
     public func setDPI(_ dpi: Int) async throws {
         guard let feature = try await resolveFeature(HIDPPFeatureID.adjustableDPI) else {
-            throw HIDPPError.unsupported("此裝置沒有可調 DPI 功能 (0x2201)")
+            throw HIDPPError.localized(key: "error.features.dpiUnavailable", arguments: [])
         }
         guard (100...44_000).contains(dpi) else {
-            throw HIDPPError.unsupported("DPI 必須介於 100 與 44000")
+            throw HIDPPError.localized(key: "error.features.dpiRange", arguments: [])
         }
         let state = try await readDPI()
         if !state.available.isEmpty, !state.available.contains(dpi) {
-            throw HIDPPError.unsupported("裝置不支援 \(dpi) DPI（可用值：\(state.available.prefix(6).map(String.init).joined(separator: ", "))…）")
+            throw HIDPPError.localized(key: "error.features.dpiUnsupported", arguments: [String(dpi), state.available.prefix(6).map(String.init).joined(separator: ", ")])
         }
         _ = try await request(
             featureIndex: feature.index,
@@ -318,7 +369,7 @@ extension HIDPPClient {
         let enhanced = try await resolveFeature(HIDPPFeatureID.smartShiftEnhanced)
         let classic = try await resolveFeature(HIDPPFeatureID.smartShift)
         guard let feature = enhanced ?? classic else {
-            throw HIDPPError.unsupported("此裝置沒有 SmartShift 功能")
+            throw HIDPPError.localized(key: "error.features.smartShiftUnavailable", arguments: [])
         }
         // Read the current configuration first so untouched fields survive.
         let current = try await request(featureIndex: feature.index, function: 1, shortFallback: true)
@@ -356,7 +407,7 @@ extension HIDPPClient {
     /// Writes the wheel control flags, preserving the bits this build does not know.
     public func setWheel(inverted: Bool?, highResolution: Bool?, diverted: Bool?) async throws {
         guard let feature = try await resolveFeature(HIDPPFeatureID.wheelControl) else {
-            throw HIDPPError.unsupported("此裝置沒有輪組控制功能 (0x2121)")
+            throw HIDPPError.localized(key: "error.features.wheelUnavailable", arguments: [])
         }
         let config = try await request(featureIndex: feature.index, function: 1, shortFallback: true)
         var flags = config.first ?? 0
@@ -366,24 +417,39 @@ extension HIDPPClient {
         _ = try await request(featureIndex: feature.index, function: 2, payload: [flags])
     }
 
+    /// 0x2202 fn5: current X, default X, current Y, default Y (big endian).
+    /// Cross-checked with Nanostrike's independently verified asymmetric values.
+    public func readSensorDPI() async throws -> (x: Int, y: Int) {
+        guard let feature = try await resolveFeature(0x2202) else {
+            throw HIDPPError.malformedReport("extended DPI feature unavailable")
+        }
+        let data = try await request(featureIndex: feature.index, function: 5, payload: [0])
+        guard data.count >= 10, data[0] == 0 else {
+            throw HIDPPError.malformedReport("invalid sensor DPI reply")
+        }
+        return (Int(data[1]) << 8 | Int(data[2]), Int(data[5]) << 8 | Int(data[6]))
+    }
+
     /// Reads the analog button capabilities (0x1B0C).
     public func readHitsCapabilities() async throws -> HitsCapabilities {
         guard let feature = try await resolveFeature(HIDPPFeatureID.analogButtons) else {
-            throw HIDPPError.unsupported("此裝置沒有類比按鍵功能 (0x1B0C)")
+            throw HIDPPError.localized(key: "error.features.analogButtonsUnavailable", arguments: [])
         }
         let caps = try await request(featureIndex: feature.index, function: 0, shortFallback: true)
         guard caps.count >= 5 else {
             throw HIDPPError.malformedReport("analog button capabilities answered \(caps.count) bytes")
         }
-        var buttonCount = Int(caps[1])
-        // The firmware over-reports; only the two main buttons are user accessible.
-        if buttonCount > 2 { buttonCount = 2 }
-        var maxActuation = Int(caps[2] >> 2)
-        var maxRapidTrigger = Int(caps[3] >> 2)
-        var maxHaptics = Int(caps[4] >> 2)
-        if maxActuation == 0 { maxActuation = 10 }
-        if maxRapidTrigger == 0 { maxRapidTrigger = 5 }
-        if maxHaptics == 0 { maxHaptics = 5 }
+        let mask = UInt16(caps[0]) << 8 | UInt16(caps[1])
+        guard mask == 0x0003 else {
+            throw HIDPPError.malformedReport("unsupported analog button bitfield")
+        }
+        let buttonCount = mask.nonzeroBitCount
+        let maxActuation = Int(caps[2] >> 2)
+        let maxRapidTrigger = Int(caps[3] >> 2)
+        let maxHaptics = Int(caps[4] >> 2)
+        guard maxActuation > 0, maxRapidTrigger > 0 else {
+            throw HIDPPError.malformedReport("invalid analog button ranges")
+        }
         return HitsCapabilities(
             buttonCount: buttonCount,
             maxActuation: maxActuation,
@@ -392,59 +458,35 @@ extension HIDPPClient {
         )
     }
 
-    /// Reads one analog button's settings (0x1B0C).
+    /// Reads the index and all three packed bytes, including reserved bits.
     public func readHitsButton(_ button: Int) async throws -> HitsButtonConfig {
+        guard (0...1).contains(button) else {
+            throw HIDPPError.localized(key: "error.features.hitsLeftRightOnly", arguments: [])
+        }
         guard let feature = try await resolveFeature(HIDPPFeatureID.analogButtons) else {
-            throw HIDPPError.unsupported("此裝置沒有類比按鍵功能 (0x1B0C)")
+            throw HIDPPError.localized(key: "error.features.analogButtonsUnavailable", arguments: [])
         }
         let data = try await request(featureIndex: feature.index, function: 2, payload: [UInt8(button)], shortFallback: true)
-        guard data.count >= 4 else {
-            throw HIDPPError.malformedReport("analog button config answered \(data.count) bytes")
+        guard data.count >= 4, Int(data[0] & 0x0F) == button,
+              let record = AnalogButtonRecord(decoding: data[1...3]) else {
+            throw HIDPPError.localized(key: "error.features.hitsButtonIndex", arguments: [])
         }
-        return HitsButtonConfig(
-            button: Int(data[0]),
-            actuation: Int(data[1] >> 2),
-            rapidTrigger: Int(data[2] >> 2),
-            haptics: Int(data[3] >> 2),
-            rapidTriggerFlag: data[2] & 0x01
-        )
+        let config = HitsButtonConfig(button: button, record: record)
+        _ = try config.validatedRecord()
+        return config
     }
 
-    /// Writes one analog button's settings (0x1B0C).
-    ///
-    /// The actuation point and the haptic strength are packed into bits 7...2. The
-    /// rapid trigger byte keeps a firmware managed flag in bit 0 — but when rapid
-    /// trigger is switched off the byte has to be exactly zero.
+    /// Volatile live write. Daily settings are saved through SuperstrikeService.
     public func setHitsButton(_ config: HitsButtonConfig, maxActuation: Int, maxRapidTrigger: Int, maxHaptics: Int) async throws {
+        let record = try config.validatedRecord(maxActuation: maxActuation, maxRapidTrigger: maxRapidTrigger, maxHaptics: maxHaptics)
         guard let feature = try await resolveFeature(HIDPPFeatureID.analogButtons) else {
-            throw HIDPPError.unsupported("此裝置沒有類比按鍵功能 (0x1B0C)")
+            throw HIDPPError.localized(key: "error.features.analogButtonsUnavailable", arguments: [])
         }
-        guard (1...max(1, min(maxActuation, 10))).contains(config.actuation) else {
-            throw HIDPPError.unsupported("觸發點必須介於 1 與 \(min(maxActuation, 10))")
-        }
-        guard (0...max(0, min(maxRapidTrigger, 5))).contains(config.rapidTrigger) else {
-            throw HIDPPError.unsupported("快速觸發必須介於 0 與 \(min(maxRapidTrigger, 5))")
-        }
-        guard (0...max(0, min(maxHaptics, 5))).contains(config.haptics) else {
-            throw HIDPPError.unsupported("回饋強度必須介於 0 與 \(min(maxHaptics, 5))")
-        }
-        let actuationWire = UInt8((config.actuation & 0x3F) << 2)
-        let rapidTriggerWire: UInt8 = config.rapidTrigger == 0
-            ? 0
-            : UInt8(((config.rapidTrigger & 0x3F) << 2) | Int(config.rapidTriggerFlag & 0x01))
-        let hapticsWire = UInt8((config.haptics & 0x3F) << 2)
-        _ = try await request(
-            featureIndex: feature.index,
-            function: 1,
-            payload: [UInt8(config.button), actuationWire, rapidTriggerWire, hapticsWire]
-        )
+        _ = try await request(featureIndex: feature.index, function: 1, payload: [UInt8(config.button)] + record.encoded)
     }
 
-    /// The draft of one HITS change.
-    ///
-    /// A field that is `nil` is not written. The rapid trigger is special: the
-    /// getter keeps returning the last level when rapid trigger is switched off,
-    /// so its state cannot be read back — it has to be chosen explicitly.
+    /// Nil preserves a field. UI choice 0 disables rapid trigger while keeping
+    /// its valid sensitivity; choices 1...5 set sensitivity and enable it.
     public struct HitsDraft: Sendable, Equatable {
         public var button: Int
         public var actuation: Int?
@@ -459,59 +501,36 @@ extension HIDPPClient {
         }
 
         public var isEmpty: Bool { actuation == nil && rapidTrigger == nil && haptics == nil }
+
+        public func applying(to current: HitsButtonConfig, maxActuation: Int = 10, maxRapidTrigger: Int = 5, maxHaptics: Int = 5) throws -> HitsButtonConfig {
+            guard !isEmpty else { throw HIDPPError.localized(key: "error.features.noChanges", arguments: []) }
+            guard button == current.button else { throw HIDPPError.localized(key: "error.features.hitsButtonIndex", arguments: []) }
+            var updated = current
+            if let actuation { updated.actuation = actuation }
+            if let haptics { updated.haptics = haptics }
+            if let rapidTrigger {
+                guard (0...5).contains(rapidTrigger) else {
+                    throw HIDPPError.localized(key: "error.features.hitsRapidRange", arguments: [String(min(maxRapidTrigger, 5))])
+                }
+                updated.rapidTriggerEnabled = rapidTrigger > 0
+                if rapidTrigger > 0 { updated.rapidTrigger = rapidTrigger }
+            }
+            _ = try updated.validatedRecord(maxActuation: maxActuation, maxRapidTrigger: maxRapidTrigger, maxHaptics: maxHaptics)
+            return updated
+        }
     }
 
-    /// Applies a HITS draft.
-    ///
-    /// The current configuration is read again first, only the fields the user
-    /// changed are written, and every other byte — including the firmware flag
-    /// in the rapid trigger byte — survives. The rapid trigger has to be chosen
-    /// explicitly, because the device does not report its state reliably.
+    /// Changes only requested fields, and verifies enabled state as well as level.
     public func applyHits(draft: HitsDraft, maxActuation: Int, maxRapidTrigger: Int, maxHaptics: Int) async throws {
-        guard !draft.isEmpty else { throw HIDPPError.unsupported("沒有任何變更") }
-        guard draft.button == 0 || draft.button == 1 else {
-            throw HIDPPError.unsupported("只支援左鍵與右鍵")
-        }
         let current = try await readHitsButton(draft.button)
-        guard current.button == draft.button else {
-            throw HIDPPError.unsupported("裝置回報的按鍵索引不符")
-        }
-        var updated = current
-        if let actuation = draft.actuation {
-            guard (1...max(1, min(maxActuation, 10))).contains(actuation) else {
-                throw HIDPPError.unsupported("觸發點必須介於 1 與 \(min(maxActuation, 10))")
-            }
-            updated.actuation = actuation
-        }
-        if let haptics = draft.haptics {
-            guard (0...max(0, min(maxHaptics, 5))).contains(haptics) else {
-                throw HIDPPError.unsupported("回饋強度必須介於 0 與 \(min(maxHaptics, 5))")
-            }
-            updated.haptics = haptics
-        }
-        if let rapidTrigger = draft.rapidTrigger {
-            guard (0...max(0, min(maxRapidTrigger, 5))).contains(rapidTrigger) else {
-                throw HIDPPError.unsupported("快速觸發必須介於 0 與 \(min(maxRapidTrigger, 5))")
-            }
-            updated.rapidTrigger = rapidTrigger
-        } else {
-            // Without an explicit choice the rapid trigger byte would be rewritten
-            // with a cached level, which could switch it on by accident.
-            throw HIDPPError.unsupported("快速觸發的狀態無法讀回，請先明確選擇關閉或一個數值")
-        }
+        let updated = try draft.applying(to: current, maxActuation: maxActuation, maxRapidTrigger: maxRapidTrigger, maxHaptics: maxHaptics)
         try await setHitsButton(updated, maxActuation: maxActuation, maxRapidTrigger: maxRapidTrigger, maxHaptics: maxHaptics)
-        // Read back: only the fields that were written may have changed.
         let verify = try await readHitsButton(draft.button)
-        if let rapidTrigger = draft.rapidTrigger, rapidTrigger > 0, verify.rapidTrigger != rapidTrigger {
-            throw HIDPPError.unsupported("快速觸發等級讀回不一致（\(verify.rapidTrigger)）")
-        }
-        if let actuation = draft.actuation, verify.actuation != actuation {
-            throw HIDPPError.unsupported("觸發點讀回不一致（\(verify.actuation)）")
-        }
-        if let haptics = draft.haptics, verify.haptics != haptics {
-            throw HIDPPError.unsupported("回饋強度讀回不一致（\(verify.haptics)）")
+        guard try verify.validatedRecord() == updated.validatedRecord() else {
+            throw HIDPPError.localized(key: "error.features.hitsVerify", arguments: [])
         }
     }
+
 }
 
 /// Maps the charging status byte of the unified battery feature.
@@ -540,17 +559,17 @@ private func expandDPIWords(_ words: [Int]) throws -> [Int] {
             // end (the next literal).
             let step = word & 0x1FFF
             guard step > 0 else {
-                throw HIDPPError.unsupported("DPI 清單的區間標記沒有步進值")
+                throw HIDPPError.localized(key: "error.features.dpiRangeMissingStep", arguments: [])
             }
             guard index + 1 < words.count, let start = values.last else {
-                throw HIDPPError.unsupported("DPI 清單的區間標記缺少起點")
+                throw HIDPPError.localized(key: "error.features.dpiRangeMissingStart", arguments: [])
             }
             let end = words[index + 1]
             guard (100...44_000).contains(end) else {
-                throw HIDPPError.unsupported("DPI 區間終點超出範圍 \(end)")
+                throw HIDPPError.localized(key: "error.features.dpiEndRange", arguments: [String(end)])
             }
             guard end > start else {
-                throw HIDPPError.unsupported("DPI 清單的區間是遞減的")
+                throw HIDPPError.localized(key: "error.features.dpiDescending", arguments: [])
             }
             var value = start + step
             while value < end {
@@ -562,14 +581,14 @@ private func expandDPIWords(_ words: [Int]) throws -> [Int] {
             continue
         }
         guard (100...44_000).contains(word) else {
-            throw HIDPPError.unsupported("DPI 清單含有超出範圍的值 \(word)")
+            throw HIDPPError.localized(key: "error.features.dpiValueRange", arguments: [String(word)])
         }
         values.append(word)
         index += 1
     }
     guard values.count > 1 else { return values }
     for position in 1..<values.count where values[position] <= values[position - 1] {
-        throw HIDPPError.unsupported("DPI 清單不是遞增的")
+        throw HIDPPError.localized(key: "error.features.dpiNotAscending", arguments: [])
     }
     return values
 }

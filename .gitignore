@@ -9,3 +9,13 @@
 /tickets/
 /backups/
 /Diversions/
+
+# Local signing material must never enter source control.
+*.p8
+*.p12
+*.pfx
+*.key
+*.pem
+*.cer
+*.mobileprovision
+*.provisionprofile
