@@ -20,11 +20,11 @@ enum MouseTheme {
 
 struct MouseGroupStyle: GroupBoxStyle {
     func makeBody(configuration: Configuration) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             configuration.label.font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
             configuration.content
         }
-        .padding(16)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(MouseTheme.surface, in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.065), lineWidth: 1))

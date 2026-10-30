@@ -10,7 +10,7 @@ struct DeviceDetailView: View {
     @State private var tab = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
+        VStack(alignment: .leading, spacing: 10) {
             header
             if snapshot.needsInputMonitoring && !model.isDemo {
                 GroupBox(AppLocalization.text("device.inputMonitoring")) {
@@ -41,8 +41,10 @@ struct DeviceDetailView: View {
                 else if tab == 1 { SideButtonSection(snapshot: snapshot) }
                 else {
                     ClassicDPISection(snapshot: snapshot)
-                    SmartShiftSection(snapshot: snapshot)
-                    WheelSection(snapshot: snapshot)
+                    HStack(alignment: .top, spacing: 12) {
+                        SmartShiftSection(snapshot: snapshot).frame(maxWidth: .infinity)
+                        WheelSection(snapshot: snapshot).frame(maxWidth: .infinity)
+                    }
                 }
             default:
                 UnavailableSection(title: AppLocalization.text("device.unsupported.title"), detail: AppLocalization.text("device.unsupported.detail"))
@@ -57,7 +59,7 @@ struct DeviceDetailView: View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(snapshot.identity.displayName(language: AppLocalization.localizer.language))
-                    .font(.system(size: 24, weight: .semibold)).tracking(-0.5)
+                    .font(.system(size: 22, weight: .semibold)).tracking(-0.4)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 12) {
                     Label(snapshot.identity.transport.displayTitle(language: AppLocalization.localizer.language), systemImage: "link")
@@ -74,10 +76,10 @@ struct DeviceDetailView: View {
                 if snapshot.isDemo { Text(AppLocalization.text("device.demoData")).font(.caption).foregroundStyle(.orange) }
             }
             Spacer(minLength: 0)
-            MouseIllustration(model: snapshot.identity.model).frame(width: 65, height: 78)
+            MouseIllustration(model: snapshot.identity.model).frame(width: 52, height: 60)
                 .rotationEffect(.degrees(8))
         }
-        .frame(minHeight: 78)
+        .frame(minHeight: 60)
 
     }
 }
@@ -136,13 +138,10 @@ struct ClassicDPISection: View {
     var body: some View {
         GroupBox(AppLocalization.text("device.dpi.title")) {
             if let dpi = snapshot.dpi, let current = dpi.current {
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .center, spacing: 28) {
-                        dpiValue(current)
-                        Spacer(minLength: 18)
-                        dpiControls(dpi.available)
-                    }
-                    VStack(alignment: .leading, spacing: 16) { dpiValue(current); dpiControls(dpi.available) }
+                HStack(spacing: 12) {
+                    dpiValue(current)
+                    Spacer(minLength: 8)
+                    dpiControls(dpi.available)
                 }
             } else { Text(AppLocalization.text("device.dpi.unknown")).foregroundStyle(.secondary) }
         }
@@ -150,20 +149,21 @@ struct ClassicDPISection: View {
     }
     private func dpiValue(_ current: Int) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
-            Text(current.formatted()).font(.system(size: 35, weight: .medium)).monospacedDigit().tracking(-1.2)
+            Text(current.formatted()).font(.system(size: 28, weight: .medium)).monospacedDigit().tracking(-0.8)
             Text("DPI").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
         }
     }
 
     private func dpiControls(_ available: [Int]) -> some View {
-        VStack(alignment: .trailing, spacing: 10) {
+        HStack(spacing: 8) {
             if available.isEmpty {
                 Text(AppLocalization.text("device.dpi.unavailable")).font(.callout).foregroundStyle(.secondary)
             } else {
                 Picker(AppLocalization.text("device.dpi.picker"), selection: $draft) {
                     Text(AppLocalization.text("common.select")).tag(Int?.none)
                     ForEach(available, id: \.self) { Text("\($0)").tag(Int?.some($0)) }
-                }.frame(width: 235).disabled(model.isBusy || model.isDemo)
+                }.labelsHidden().frame(width: 130).disabled(model.isBusy || model.isDemo)
+                    .accessibilityLabel(AppLocalization.text("device.dpi.picker"))
                 HStack(spacing: 8) {
                     Button(AppLocalization.text("common.cancel")) { draft = nil }.disabled(draft == nil)
                     Button(AppLocalization.text("common.apply")) {
@@ -187,36 +187,32 @@ struct SmartShiftSection: View {
         GroupBox(AppLocalization.text("device.smartShift.title")) {
             VStack(alignment: .leading, spacing: 8) {
                 if let state = snapshot.smartShift, let currentMode = state.mode, let currentThreshold = state.threshold {
-                    HStack {
-                        Text(AppLocalization.text(currentMode == 2 ? "device.smartShift.ratchet" : "device.smartShift.free"))
-                            .font(.system(size: 15, weight: .medium))
-                        Spacer()
-                        if let torque = state.torque {
-                            Text(AppLocalization.text("device.smartShift.torque") + " \(torque)%")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }.padding(.bottom, 8)
-                    Picker(AppLocalization.text("device.smartShift.picker"), selection: $mode) {
-                        Text(AppLocalization.text("common.select")).tag(Int?.none)
-                        Text(AppLocalization.text("device.smartShift.free")).tag(Int?.some(1))
-                        Text(AppLocalization.text("device.smartShift.ratchet")).tag(Int?.some(2))
+                    Picker(AppLocalization.text("device.smartShift.picker"), selection: Binding(
+                        get: { mode ?? currentMode },
+                        set: { mode = $0 == currentMode ? nil : $0 }
+                    )) {
+                        Text(AppLocalization.text("device.smartShift.free")).tag(1)
+                        Text(AppLocalization.text("device.smartShift.ratchet")).tag(2)
                     }
-                    .frame(maxWidth: .infinity)
                     .disabled(model.isBusy || model.isDemo)
                     Stepper(AppLocalization.text("device.smartShift.stepper", threshold ?? currentThreshold), value: Binding(
                         get: { threshold ?? currentThreshold },
-                        set: { threshold = $0 }
+                        set: { threshold = $0 == currentThreshold ? nil : $0 }
                     ), in: 1...254)
                         .disabled(model.isBusy || model.isDemo)
-                    HStack {
-                        Spacer()
+                    if let torque = state.torque {
+                        Text(AppLocalization.text("device.smartShift.torque") + " \(torque)%")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    HStack(spacing: 8) {
+                        Spacer(minLength: 0)
+                        Button(AppLocalization.text("common.cancel")) { mode = nil; threshold = nil }
+                            .disabled(mode == nil && threshold == nil)
                         Button(AppLocalization.text("common.apply")) {
                             Task { await model.applySmartShift(device: snapshot, mode: mode, threshold: threshold) }
                         }
                         .disabled((mode == nil && threshold == nil) || model.isBusy || model.isDemo)
-                        Button(AppLocalization.text("common.cancel")) { mode = nil; threshold = nil }
-                            .disabled(mode == nil && threshold == nil)
-                    }
+                    }.controlSize(.small)
                 } else {
                     Text(AppLocalization.text("device.smartShift.unknown"))
                         .font(.callout)
@@ -429,19 +425,19 @@ struct HITSButtonColumn: View {
                 step: 1
             )
             .disabled(model.isBusy || model.isDemo)
-            LabeledContent(
-                AppLocalization.text("device.hits.rapidTrigger"),
-                value: (rapidTriggerChoice ?? (config.rapidTriggerEnabled ? config.rapidTrigger : 0)) == 0 ? AppLocalization.text("device.hits.off") : String(rapidTriggerChoice ?? config.rapidTrigger)
-            )
-            Picker(AppLocalization.text("device.hits.rapidTrigger"), selection: Binding(get: { rapidTriggerChoice ?? (config.rapidTriggerEnabled ? config.rapidTrigger : 0) }, set: { rapidTriggerChoice = $0 })) {
-                Text(AppLocalization.text("device.hits.off")).tag(0)
-                ForEach(1...max(1, min(capabilities.maxRapidTrigger, 5)), id: \.self) { value in
-                    Text("\(value)").tag(value)
+            HStack(spacing: 8) {
+                Text(AppLocalization.text("device.hits.rapidTrigger"))
+                Spacer(minLength: 0)
+                Picker(AppLocalization.text("device.hits.rapidTrigger"), selection: Binding(get: { rapidTriggerChoice ?? (config.rapidTriggerEnabled ? config.rapidTrigger : 0) }, set: { rapidTriggerChoice = $0 })) {
+                    Text(AppLocalization.text("device.hits.off")).tag(0)
+                    ForEach(1...max(1, min(capabilities.maxRapidTrigger, 5)), id: \.self) { value in
+                        Text("\(value)").tag(value)
+                    }
                 }
+                .labelsHidden().frame(width: 94)
+                .accessibilityLabel(AppLocalization.text("device.hits.rapidTrigger"))
+                .disabled(model.isBusy || model.isDemo)
             }
-            .labelsHidden()
-            .frame(width: 150)
-            .disabled(model.isBusy || model.isDemo)
             LabeledContent(AppLocalization.text("device.hits.feedback"), value: "\(Int(haptics ?? Double(config.haptics)))")
             Slider(
                 value: Binding(get: { haptics ?? Double(config.haptics) }, set: { haptics = $0 }),
@@ -484,8 +480,10 @@ struct ProfileControlSection: View {
         GroupBox(AppLocalization.text("device.profile.title")) {
             VStack(alignment: .leading, spacing: 10) {
                 if let plan = snapshot.plan, let profile = snapshot.profile {
-                    LabeledContent(AppLocalization.text("device.profile.mode"), value: AppLocalization.text(plan.isOnboardMode ? "device.profile.modeOnboard" : "device.profile.modeHost"))
-                    LabeledContent(AppLocalization.text("device.profile.sector"), value: "\(plan.storedSector)")
+                    HStack(spacing: 20) {
+                        LabeledContent(AppLocalization.text("device.profile.mode"), value: AppLocalization.text(plan.isOnboardMode ? "device.profile.modeOnboard" : "device.profile.modeHost"))
+                        LabeledContent(AppLocalization.text("device.profile.sector"), value: "\(plan.storedSector)")
+                    }.font(.caption).foregroundStyle(.secondary)
                     if !plan.isRunning {
                         Text(AppLocalization.text("device.profile.notRunning"))
                             .font(.callout)
@@ -495,69 +493,78 @@ struct ProfileControlSection: View {
                         }
                         .disabled(model.isBusy || model.isDemo)
                     }
-                    LabeledContent(AppLocalization.text("device.profile.dpi"), value: "\(profile.dpiX) / \(profile.dpiY)")
-                    LabeledContent(AppLocalization.text("device.profile.reportRate"), value: "\(profile.reportRateHz) Hz")
+                    HStack(alignment: .top, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            LabeledContent(AppLocalization.text("device.profile.dpi"), value: "\(profile.dpiX) / \(profile.dpiY)")
+                            LabeledContent(AppLocalization.text("device.profile.reportRate"), value: "\(profile.reportRateHz) Hz")
 
-                    Stepper(AppLocalization.text("device.profile.dpiStepper", dpi ?? profile.dpiX), onIncrement: {
-                        dpi = snapshot.supportedProfileDPI.first { $0 > (dpi ?? profile.dpiX) } ?? dpi
-                    }, onDecrement: {
-                        dpi = snapshot.supportedProfileDPI.last { $0 < (dpi ?? profile.dpiX) } ?? dpi
-                    })
-                    .disabled(model.isBusy || model.isDemo || snapshot.supportedProfileDPI.isEmpty)
-                    Picker(AppLocalization.text("device.profile.ratePicker"), selection: $rateHz) {
-                        Text(AppLocalization.text("device.profile.noChange")).tag(Int?.none)
-                        ForEach(ProfileLayout.reportRates, id: \.self) { hz in
-                            Text("\(hz) Hz").tag(Int?.some(hz))
-                        }
-                    }
-                    .frame(width: 200)
-                    .disabled(model.isBusy || model.isDemo)
+                            Stepper(AppLocalization.text("device.profile.dpiStepper", dpi ?? profile.dpiX), onIncrement: {
+                                dpi = snapshot.supportedProfileDPI.first { $0 > (dpi ?? profile.dpiX) } ?? dpi
+                            }, onDecrement: {
+                                dpi = snapshot.supportedProfileDPI.last { $0 < (dpi ?? profile.dpiX) } ?? dpi
+                            })
+                            .disabled(model.isBusy || model.isDemo || snapshot.supportedProfileDPI.isEmpty)
+                            Picker(AppLocalization.text("device.profile.ratePicker"), selection: $rateHz) {
+                                Text(AppLocalization.text("device.profile.noChange")).tag(Int?.none)
+                                ForEach(ProfileLayout.reportRates, id: \.self) { hz in
+                                    Text("\(hz) Hz").tag(Int?.some(hz))
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .disabled(model.isBusy || model.isDemo)
 
-                    Text(AppLocalization.text("device.profile.buttons"))
-                        .font(.headline)
-                    Picker(AppLocalization.text("device.profile.middle"), selection: $middle) {
-                        ForEach(SideButtonChoice.allCases) { choice in
-                            Text(choice.title).tag(choice)
-                        }
-                    }
-                    .frame(width: 220)
-                    .disabled(model.isBusy || model.isDemo)
-                    Picker(AppLocalization.text("device.profile.back"), selection: $back) {
-                        ForEach(SideButtonChoice.allCases) { choice in
-                            Text(choice.title).tag(choice)
-                        }
-                    }
-                    .frame(width: 220)
-                    .disabled(model.isBusy || model.isDemo)
-                    Picker(AppLocalization.text("device.profile.forward"), selection: $forward) {
-                        ForEach(SideButtonChoice.allCases) { choice in
-                            Text(choice.title).tag(choice)
-                        }
-                    }
-                    .frame(width: 220)
-                    .disabled(model.isBusy || model.isDemo)
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(AppLocalization.text("device.profile.buttons"))
+                                .font(.system(size: 12, weight: .semibold))
+                            Picker(AppLocalization.text("device.profile.middle"), selection: $middle) {
+                                ForEach(SideButtonChoice.allCases) { choice in
+                                    Text(choice.title).tag(choice)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .disabled(model.isBusy || model.isDemo)
+                            Picker(AppLocalization.text("device.profile.back"), selection: $back) {
+                                ForEach(SideButtonChoice.allCases) { choice in
+                                    Text(choice.title).tag(choice)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .disabled(model.isBusy || model.isDemo)
+                            Picker(AppLocalization.text("device.profile.forward"), selection: $forward) {
+                                ForEach(SideButtonChoice.allCases) { choice in
+                                    Text(choice.title).tag(choice)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .disabled(model.isBusy || model.isDemo)
 
-                    Button(AppLocalization.text("device.profile.applyAll")) {
-                        var changes = CompoundChanges()
-                        if let dpi {
-                            changes.dpiX = dpi
-                            changes.dpiY = dpi
+                        }.frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    HStack(spacing: 8) {
+                        Spacer(minLength: 0)
+                        Button(AppLocalization.text("common.cancel")) {
+                            dpi = nil; rateHz = nil
+                            middle = .unchanged; back = .unchanged; forward = .unchanged
                         }
-                        changes.reportRateHz = rateHz
-                        var buttons: [ButtonChange] = []
-                        if let action = middle.action { buttons.append(ButtonChange(slot: 2, action: action)) }
-                        if let action = back.action { buttons.append(ButtonChange(slot: 3, action: action)) }
-                        if let action = forward.action { buttons.append(ButtonChange(slot: 4, action: action)) }
-                        changes.buttons = buttons
-                        Task { await model.applySuperstrike(device: snapshot, changes: changes) }
-                    }
-                    .disabled((dpi == nil && rateHz == nil && middle == .unchanged && back == .unchanged && forward == .unchanged)
-                        || model.isBusy || model.isDemo)
-                    Button(AppLocalization.text("common.cancel")) {
-                        dpi = nil; rateHz = nil
-                        middle = .unchanged; back = .unchanged; forward = .unchanged
-                    }
-                    .disabled(dpi == nil && rateHz == nil && middle == .unchanged && back == .unchanged && forward == .unchanged)
+                        .disabled(dpi == nil && rateHz == nil && middle == .unchanged && back == .unchanged && forward == .unchanged)
+                        Button(AppLocalization.text("device.profile.applyAll")) {
+                            var changes = CompoundChanges()
+                            if let dpi {
+                                changes.dpiX = dpi
+                                changes.dpiY = dpi
+                            }
+                            changes.reportRateHz = rateHz
+                            var buttons: [ButtonChange] = []
+                            if let action = middle.action { buttons.append(ButtonChange(slot: 2, action: action)) }
+                            if let action = back.action { buttons.append(ButtonChange(slot: 3, action: action)) }
+                            if let action = forward.action { buttons.append(ButtonChange(slot: 4, action: action)) }
+                            changes.buttons = buttons
+                            Task { await model.applySuperstrike(device: snapshot, changes: changes) }
+                        }
+                        .disabled((dpi == nil && rateHz == nil && middle == .unchanged && back == .unchanged && forward == .unchanged)
+                            || model.isBusy || model.isDemo)
+                    }.controlSize(.small)
                     Text(AppLocalization.text("device.profile.savedPending"))
                         .font(.caption)
                         .foregroundStyle(.secondary)

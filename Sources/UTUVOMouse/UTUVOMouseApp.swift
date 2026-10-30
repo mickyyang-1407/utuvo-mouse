@@ -50,7 +50,7 @@ struct UTUVOMouseApp: App {
                 .preferredColorScheme(LaunchOptions.appearance)
                 .onAppear { AppLifecycle.shared.model = model }
         }
-        .defaultSize(width: 900, height: 620)
+        .defaultSize(width: 900, height: 500)
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
 
@@ -783,7 +783,7 @@ struct ContentView: View {
                         .accessibilityLabel(SettingsStrings.exit.settingsHelp)
                 }
                 .buttonStyle(.borderless)
-                .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 0)
+                .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 0)
                 detail
                 statusBar
             }
@@ -791,7 +791,7 @@ struct ContentView: View {
         }
         .tint(MouseTheme.accent)
         .groupBoxStyle(MouseGroupStyle())
-        .frame(minWidth: 760, minHeight: 560)
+        .frame(minWidth: 760, minHeight: 500)
         .task { model.start() }
     }
 
@@ -854,7 +854,7 @@ struct ContentView: View {
             ScrollView {
                 DeviceDetailView(snapshot: snapshot)
                     .id(snapshot.id)
-                    .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 16)
+                    .padding(.horizontal, 18).padding(.top, 4).padding(.bottom, 12)
             }
         } else {
             VStack(spacing: 8) {

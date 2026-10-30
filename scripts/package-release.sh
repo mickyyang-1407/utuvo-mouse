@@ -689,7 +689,7 @@ ARTIFACT_CHANGELOG="$(dirname "$TOOLS_DIR")/CHANGELOG"
 
 # CLI 能力只在 execute、只對明確指定的那份官方工具檢查。
 require_flag() {
-    "$1" --help 2>&1 | grep -qE -- "(^|[^A-Za-z0-9_-])$2([^A-Za-z0-9_-]|\$)" \
+    "$1" --help 2>&1 | grep -E -- "(^|[^A-Za-z0-9_-])$2([^A-Za-z0-9_-]|\$)" >/dev/null \
         || die "$(basename "$1") 不支援 ${2}（先停下，不猜旗標）"
 }
 require_flag "$SIGN_UPDATE" --account

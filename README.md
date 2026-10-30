@@ -2,9 +2,9 @@
 
 A small, independent native macOS controller for Logitech MX Master 4 for Mac and PRO X2 SUPERSTRIKE. English and Traditional Chinese. MIT licensed. No accounts, cloud profiles, RGB editor, macros or preset marketplace.
 
-[Download 0.3.2 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.3.2) — Developer ID signed, Apple notarized, Gatekeeper accepted.
+[Download 0.3.3 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.3.3) — Developer ID signed, Apple notarized, Gatekeeper accepted.
 
-**0.3.2 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
+**0.3.3 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
 
 ## Essentials
 
@@ -30,7 +30,7 @@ Language changes apply after a safe quit/reopen. Login launch and restoring MX m
 
 Exact product IDs identify MX Master 4 M and USB SUPERSTRIKE. A LIGHTSPEED receiver requires its paired device’s reported name; shared DPI/onboard features never establish a model. Other Logitech mouse collections appear by their macOS-reported name, with a read-only notice and no configuration controls or device opening. [Identification details](docs/IDENTIFICATION.md).
 
-0.3.2 uses a shorter header, narrower sidebar, denser cards and a 900 × 620 default content size (760 × 560 minimum). English, Traditional Chinese, light/dark appearance and the existing login/update preferences remain available.
+0.3.3 puts MX DPI in one row, with SmartShift and wheel controls side by side. SUPERSTRIKE has compact HITS controls and two columns for profile fields/buttons. Normal settings fit without scrolling in a 900 × 500 content area (760 × 500 minimum). English, Traditional Chinese, light/dark appearance and existing login/update preferences remain available. Expanded diagnostics, permission warnings or unusual device states may need scrolling. See [compact-layout validation](docs/COMPACT-UI.md).
 
 ## Action Ring
 
@@ -54,7 +54,7 @@ Development builds use ad-hoc signing and need no release key. Permissions for a
 
 ## Validation
 
-- 141 isolated tests in 24 suites; independent Gemini review and targeted repair review passed.
+- Prior Core/IO/support gate: 141 isolated tests in 24 suites. The identification update passed 21 focused tests in 3 suites, including 5 new identity/parser tests. 0.3.3 adds native viewport, actual bilingual page and local draft/cancel checks; no protocol behavior was changed. Independent Gemini reviews passed.
 - Corrected LIGHTSPEED hardware: actual selected stage and sensor DPI both verified 800 → 3200; only the intended stage bytes/CRC changed. HITS left 6/RT enabled level 3/haptics 4 and right 4/RT enabled level 1/haptics 2 were saved and checked against both NVM and live readback, then the complete daily profile was restored. Final: onboard/profile 1, sensor 3200×3200, both HITS 5/RT off/retained sensitivity 2/haptics 3, auxiliary button records unchanged.
 - Earlier USB physical trials confirmed transport, normal left/right clicks, differing haptic strength and a free-form onboard button trial. The corrected USB configuration path now also passed a compound write/readback/restore: sensor 3300×3300, both HITS records, stored report rate 2000 Hz and disabled auxiliary mappings; complete daily profile/control/native auxiliary mappings restored to 3200×3200, HITS 5/RT off/haptics 3 and stored rate 1000 Hz. No new physical press-output counts or actual polling-frequency measurement. No claims about latency, debounce, exact press counts or long-term reliability.
 - Production-generated C/V CGEvents passed native AppKit menu dispatch into real NSTextView Copy/Paste. Clipboard restored, no global input posted. This is separate from a physical MX button trial.
@@ -90,7 +90,11 @@ MX 支援電量、DPI、SmartShift、滾輪、中鍵／前後側鍵複製貼上�
 
 0.3.1 將 Action Ring 每秒 60 次的游標輪詢改成 AppKit 原生滑鼠事件。相同隔離原生測試的靜止 CPU 從單核心 0.370% 降至 0.00574%，每秒中斷喚醒從 60.47 降至 0.50；反覆開關 60 次，兩版都沒有殘留視窗。完整 App 與隔離浮層的耗用分開記錄，詳見[資源量測](docs/PERFORMANCE.md)。
 
-0.3.2 縮短頁首、縮窄側欄與卡片間距。MX Master 4 M／USB SUPERSTRIKE 依產品 ID 自動辨識，LIGHTSPEED 依接收器回報的配對裝置名稱確認；不再靠通用功能猜型號。其他 Logitech 滑鼠可顯示系統回報名稱，僅提供辨識、不開啟或設定裝置。中英文、登入自啟動與自動更新偏好均保留。
+0.3.3 將 MX 的 DPI 排成單列、SmartShift 與滾輪左右並排，SUPERSTRIKE 的板載設定與按鍵也分兩欄。一般設定在 900×500 內容區即可看完，最小尺寸 760×500；展開診斷、權限或特殊狀態可能需要捲動。MX Master 4 M／USB SUPERSTRIKE 依產品 ID 自動辨識，LIGHTSPEED 依接收器回報的配對裝置名稱確認；不再靠通用功能猜型號。其他 Logitech 滑鼠可顯示系統回報名稱，僅提供辨識、不開啟或設定裝置。中英文、登入自啟動與自動更新偏好均保留。
+
+## Contributing
+
+Other Logitech mouse names can appear through passive macOS inventory; settings support is currently limited to the two verified models. Not every receiver/pairing combination can expose a mouse name. To help add a model, see [CONTRIBUTING.md](CONTRIBUTING.md) for the required protocol and isolated/hardware evidence.
 
 ## License
 
