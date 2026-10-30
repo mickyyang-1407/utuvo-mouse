@@ -33,6 +33,34 @@ class WorkerTests(unittest.TestCase):
     def write_report(self):
         (self.job / "report.json").write_text(json.dumps(self.report))
 
+    def capability_payload(self, features=("0000", "0001", "1004", "2201"), origin="imported"):
+        return {
+            "schemaVersion": 1,
+            "origin": origin,
+            "report": {
+                "schemaVersion": 1, "modelKey": self.job.name, "vendorID": 0x046D,
+                "productID": 0xB025, "transport": "bluetooth", "readOnly": True,
+                "configurationWritesEnabled": False,
+                "protocolVersion": {"major": 2, "minor": 0},
+                "featureIDs": list(features),
+            },
+            "hardwareBehaviorVerified": False,
+            "released": False,
+        }
+
+    def write_capabilities(self, payload=None):
+        payload = self.capability_payload() if payload is None else payload
+        (self.job / "capabilities.json").write_text(json.dumps(payload, indent=2, sort_keys=True))
+        return payload
+
+    def fingerprint(self, payload=None):
+        payload = self.capability_payload() if payload is None else payload
+        return worker.capability_fingerprint(payload)
+
+    def shared_fixture(self):
+        path = Path(__file__).resolve().parent.parent / "Tests" / "fixtures" / "capability-fingerprint.json"
+        return json.loads(path.read_text(encoding="utf-8"))
+
     def source(self):
         source = self.root / "original"
         source.mkdir()
@@ -238,6 +266,168 @@ pathlib.Path('SUPPORT-CANDIDATE.md').write_text('Synthetic fixture only. Physica
             if not alive: break
             time.sleep(0.01)
         self.assertFalse(alive)
+
+
+    # --- Capability input -------------------------------------------------
+
+    def test_capability_fingerprint_matches_the_shared_fixture(self):
+        fixture = self.shared_fixture()
+        payload = self.capability_payload(features=tuple(fixture["report"]["featureIDs"]),
+                                          origin=fixture["origin"])
+        self.assertEqual(worker.capability_fingerprint(payload), fixture["fingerprint"])
+        canonical = "\n".join(["v1", payload["report"]["modelKey"], payload["origin"],
+                               "%d.%d" % (payload["report"]["protocolVersion"]["major"],
+                                         payload["report"]["protocolVersion"]["minor"]),
+                               ",".join(payload["report"]["featureIDs"])])
+        self.assertEqual(canonical, fixture["canonical"])
+
+    def test_capability_record_is_strictly_validated(self):
+        self.assertIsNone(worker.load_capabilities(self.job))
+        self.write_capabilities()
+        self.assertIsNotNone(worker.load_capabilities(self.job))
+        broken = {
+            "extra": lambda p: p.update(extra=1),
+            "readOnly_number": lambda p: p["report"].update(readOnly=1),
+            "writes_enabled": lambda p: p["report"].update(configurationWritesEnabled=True),
+            "not_read_only": lambda p: p["report"].update(readOnly=False),
+            "wrong_vendor": lambda p: p["report"].update(vendorID=0x1234),
+            "wrong_product": lambda p: p["report"].update(productID=0xC54D),
+            "wrong_transport": lambda p: p["report"].update(transport="usb"),
+            "wrong_model": lambda p: p["report"].update(modelKey="046d-c54d-receiver"),
+            "bad_protocol": lambda p: p["report"].update(protocolVersion={"major": 3, "minor": 0}),
+            "duplicate_features": lambda p: p["report"].update(featureIDs=["0000", "0001", "1004", "1004"]),
+            "unsorted_features": lambda p: p["report"].update(featureIDs=["1004", "0001", "0000"]),
+            "missing_root": lambda p: p["report"].update(featureIDs=["0001", "1004"]),
+            "missing_feature_set": lambda p: p["report"].update(featureIDs=["0000", "1004"]),
+            "lowercase_feature": lambda p: p["report"].update(featureIDs=["0000", "0001", "1b0c"]),
+            "verified_claim": lambda p: p.update(hardwareBehaviorVerified=True),
+            "released_claim": lambda p: p.update(released=True),
+            "unknown_origin": lambda p: p.update(origin="deviceConfirmed"),
+            "report_extra": lambda p: p["report"].update(serialNumber="PRIVATE"),
+        }
+        for name, mutate in broken.items():
+            payload = self.capability_payload()
+            mutate(payload)
+            self.write_capabilities(payload)
+            with self.assertRaises(ValueError, msg=name):
+                worker.load_capabilities(self.job)
+        # The valid record is still loadable afterwards.
+        self.write_capabilities()
+        self.assertIsNotNone(worker.load_capabilities(self.job))
+
+    def test_symlinked_and_oversized_capability_files_are_refused(self):
+        (self.job / "capabilities.json").symlink_to(self.root / "nonexistent")
+        with self.assertRaises(ValueError):
+            worker.load_capabilities(self.job)
+        (self.job / "capabilities.json").unlink()
+        (self.job / "capabilities.json").write_text(json.dumps(self.capability_payload()) + " " * 70000)
+        with self.assertRaises(ValueError):
+            worker.load_capabilities(self.job)
+
+    def test_capability_record_of_another_model_is_refused(self):
+        # The B025 record inside another model's job directory is never that
+        # job's input.
+        other = self.root / "046d-ffff-bluetooth"
+        other.mkdir()
+        (other / "report.json").write_text(json.dumps({
+            "schemaVersion": 1, "modelKey": other.name, "vendorID": 0x046D,
+            "productID": 0xFFFF, "transport": "bluetooth", "catalogName": None,
+            "observation": "metadataOnly", "featureIDs": []}))
+        (other / "capabilities.json").write_text(json.dumps(self.capability_payload()))
+        with self.assertRaises(ValueError):
+            worker.load_capabilities(other)
+        # The job is not executed with a foreign record either.
+        with self.assertRaises(ValueError):
+            worker.process_job(other, self.root, self.root, "unused", 1)
+        # A record that names another model is refused in its own job too.
+        payload = self.capability_payload()
+        payload["report"]["modelKey"] = "046d-ffff-bluetooth"
+        self.write_capabilities(payload)
+        with self.assertRaises(ValueError):
+            worker.load_capabilities(self.job)
+        # The valid record of its own job still loads.
+        self.write_capabilities()
+        self.assertIsNotNone(worker.load_capabilities(self.job))
+
+    def test_non_regular_capability_files_are_refused_before_read(self):
+        # A directory in place of the stored input is never read.
+        (self.job / "capabilities.json").mkdir()
+        with self.assertRaises(ValueError):
+            worker.load_capabilities(self.job)
+        (self.job / "capabilities.json").rmdir()
+        # A pipe would block an unbounded read; it is refused as well.
+        os.mkfifo(self.job / "capabilities.json")
+        with self.assertRaises(ValueError):
+            worker.load_capabilities(self.job)
+
+    def test_new_capability_input_archives_and_runs_one_follow_up(self):
+        source = self.source()
+        output = self.root / "candidates"
+        output.mkdir()
+        worker.set_phase(self.job, self.job.name, "needsHardware")
+        worker.atomic_json(self.job / "result.json",
+                           {"schemaVersion": 1, "reason": "program_tests_passed_physical_pending"})
+        before = json.loads((self.job / "status.json").read_text())
+        self.assertIsNone(before["capabilitiesFingerprint"])
+        self.write_capabilities()
+        agent = self.fake_agent("pathlib.Path(sys.argv[0]).with_name('agent-runs.txt').write_text("
+                                "(pathlib.Path(sys.argv[0]).with_name('agent-runs.txt').read_text() "
+                                "if pathlib.Path(sys.argv[0]).with_name('agent-runs.txt').exists() else '') + 'run\\n')\n"
+                                "raise SystemExit(9)\n")
+        outcome = worker.process_job(self.job, source, output, agent, 10)
+        self.assertEqual(outcome, "failed")
+        # Exactly one follow-up ran.
+        self.assertEqual((self.root / "agent-runs.txt").read_text().count("run"), 1)
+        # The previous status and result are preserved, not lost.
+        history = self.job / "history"
+        archived = json.loads((history / "status-1.json").read_text())
+        self.assertEqual(archived["phase"], "needsHardware")
+        self.assertEqual(json.loads((history / "result-1.json").read_text())["reason"],
+                         "program_tests_passed_physical_pending")
+        # The new run records the new input revision.
+        after = json.loads((self.job / "status.json").read_text())
+        self.assertEqual(after["capabilitiesFingerprint"], self.fingerprint())
+        self.assertEqual(json.loads((self.job / "result.json").read_text())["capabilitiesFingerprint"],
+                         self.fingerprint())
+
+    def test_same_capability_input_does_not_run_again(self):
+        source = self.source()
+        output = self.root / "candidates"
+        output.mkdir()
+        self.write_capabilities()
+        for phase in ("needsHardware", "failed"):
+            worker.set_phase(self.job, self.job.name, phase, self.fingerprint())
+            with patch.object(worker, "run", side_effect=AssertionError("must not run")):
+                self.assertEqual(worker.process_job(self.job, source, output, "unused", 1), "skipped")
+
+    def test_normalized_capabilities_reach_the_agent_prompt(self):
+        source = self.source()
+        output = self.root / "candidates"
+        output.mkdir()
+        self.write_capabilities()
+        agent = self.fake_agent("pathlib.Path(sys.argv[0]).with_name('agent-prompt.txt').write_text(request)\n"
+                                "raise SystemExit(9)\n")
+        self.assertEqual(worker.process_job(self.job, source, output, agent, 10), "failed")
+        prompt = (self.root / "agent-prompt.txt").read_text()
+        self.assertIn("imported", prompt)
+        self.assertIn("2201", prompt)
+        self.assertIn(self.fingerprint(), prompt)
+        self.assertIn("hardwareBehaviorVerified", prompt)
+        # Only the normalized safe values travel; no private field does.
+        self.assertNotIn("serialNumber", prompt)
+        self.assertNotIn("PRIVATE", prompt)
+
+    def test_imported_provenance_is_never_device_confirmed(self):
+        self.write_capabilities(self.capability_payload(origin="imported"))
+        loaded = worker.load_capabilities(self.job)
+        self.assertEqual(loaded["origin"], "imported")
+        normalized = worker.normalized_capabilities(loaded)
+        self.assertEqual(normalized["origin"], "imported")
+        self.assertFalse(normalized["hardwareBehaviorVerified"])
+        self.assertFalse(normalized["released"])
+        self.write_capabilities(self.capability_payload(origin="appReadOnly"))
+        loaded = worker.load_capabilities(self.job)
+        self.assertEqual(worker.normalized_capabilities(loaded)["origin"], "appReadOnly")
 
 
 if __name__ == "__main__":

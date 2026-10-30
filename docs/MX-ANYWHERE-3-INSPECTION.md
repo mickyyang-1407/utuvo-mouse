@@ -41,8 +41,20 @@ and returns nonzero, with no successful partial report. No report file or
 preferences are saved automatically.
 
 This capability report is a **separate schema** from the developer queue's
-`report.json`; do not copy it directly into that queue. Automated capability
-ingestion and physical validation records remain future integration work.
+`report.json`; do not copy it directly into that queue. It can be handed to the
+queue through the explicit import route, which validates it, stores it as
+`capabilities.json` with imported provenance and never treats it as a device
+confirmation:
+
+```sh
+"build/UTUVO Mouse.app/Contents/MacOS/UTUVO Mouse" \
+  --import-capabilities /path/to/report.json \
+  --support-directory /path/to/queue
+```
+
+See [model support](MODEL-SUPPORT.md#capability-records) for the stored schema,
+the input fingerprint and the companion's rules. Physical validation records
+remain future work.
 
 Only ROOT protocol-version/feature-resolution and FEATURE_SET count/ID getters
 are sent. There are at most 64 non-ROOT features / 67 requests, each with at most
@@ -56,9 +68,11 @@ still require real-device checks.
 ## Evidence and sources
 
 The actual configured Codex CLI produced this candidate from public/synthetic
-inputs. The companion built the full source and ran 167 mock/synthetic tests in
-28 suites under its separate OS sandbox. Five actual executable help/consent/
-wrong-model/mixed-mode gates passed without a consented hardware invocation.
+inputs. The companion built the full source and ran 186 mock/synthetic tests in
+29 suites under its separate OS sandbox, including the capability-record
+validator, the shared cross-language fingerprint fixture and the import-route
+gates. Five actual executable help/consent/wrong-model/mixed-mode gates passed
+without a consented hardware invocation.
 An isolated Core Foundation timer fixture also checked async main-run-loop
 behavior. Independent source review passed. These are program evidence, not
 physical evidence, an installed update or a public binary release.

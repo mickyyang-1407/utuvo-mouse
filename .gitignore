@@ -19,3 +19,7 @@
 *.cer
 *.mobileprovision
 *.provisionprofile
+
+# Python developer companion fixtures
+__pycache__/
+*.pyc

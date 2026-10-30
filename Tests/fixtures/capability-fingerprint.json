@@ -1,0 +1,24 @@
+{
+  "canonical": "v1\n046d-b025-bluetooth\nimported\n2.0\n0000,0001,1004,2201",
+  "fingerprint": "91c1ea06a57d15919040a412e0058a0bdcab19ac817e8ca3283d97c49b29e450",
+  "origin": "imported",
+  "report": {
+    "configurationWritesEnabled": false,
+    "featureIDs": [
+      "0000",
+      "0001",
+      "1004",
+      "2201"
+    ],
+    "modelKey": "046d-b025-bluetooth",
+    "productID": 45093,
+    "protocolVersion": {
+      "major": 2,
+      "minor": 0
+    },
+    "readOnly": true,
+    "schemaVersion": 1,
+    "transport": "bluetooth",
+    "vendorID": 1133
+  }
+}
