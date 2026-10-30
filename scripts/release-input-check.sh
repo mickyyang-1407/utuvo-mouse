@@ -499,6 +499,8 @@ done
 zip="$(ls "$dir"/*.zip | head -1)"
 size="$(stat -f%z "$zip")"
 name="$(basename "$zip")"
+# Match the official generator: a prefix without trailing slash replaces its last path component.
+resolved_url="$(python3 -c 'import sys; from urllib.parse import urljoin; print(urljoin(sys.argv[1], sys.argv[2]))' "$prefix" "$name")"
 plist="$(mktemp)"
 unzip -p "$zip" 'UTUVO Mouse.app/Contents/Info.plist' > "$plist"
 ver="$(plutil -extract CFBundleShortVersionString raw -o - "$plist")"
@@ -515,7 +517,7 @@ cat > "$dir/appcast.xml" <<XML
             <sparkle:version>$build</sparkle:version>
             <sparkle:shortVersionString>$ver</sparkle:shortVersionString>
             <pubDate>Wed, 01 Jan 2025 00:00:00 +0000</pubDate>
-            <enclosure url="$prefix/$name" length="$size" type="application/octet-stream" sparkle:edSignature="$sig" />
+            <enclosure url="$resolved_url" length="$size" type="application/octet-stream" sparkle:edSignature="$sig" />
         </item>
     </channel>
 </rss>

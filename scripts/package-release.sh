@@ -800,7 +800,7 @@ run_or_fail codesign --verify --deep --strict --verbose=2 "$STAGED_APP"
 
 APP_TEAM="$(codesign -dv --verbose=4 "$STAGED_APP" 2>&1 | sed -n 's/^TeamIdentifier=//p' | head -1)"
 [ -n "$APP_TEAM" ] || die "外層簽章沒有 TeamIdentifier"
-codesign -dv --verbose=4 "$STAGED_APP" 2>&1 | grep -q '^Authority=Developer ID Application' \
+codesign -dv --verbose=4 "$STAGED_APP" 2>&1 | grep '^Authority=Developer ID Application' >/dev/null \
     || die "外層簽章權威不是 Developer ID Application"
 
 # 巢狀項目必須是同一個 team。
@@ -869,7 +869,7 @@ run_or_fail "$SIGN_UPDATE" --account "$ACCOUNT" --verify "$FINAL_ZIP" "$ED_SIGNA
 # --- 5. appcast 與校驗 ------------------------------------------------------
 log "產生 appcast"
 run_or_fail "$GENERATE_APPCAST" --account "$ACCOUNT" \
-    --download-url-prefix "$DL_PREFIX" --link "$PROJ_LINK" \
+    --download-url-prefix "${DL_PREFIX%/}/" --link "$PROJ_LINK" \
     --maximum-deltas 0 "$PUBLISH_DIR"
 
 APPCAST="$PUBLISH_DIR/appcast.xml"
