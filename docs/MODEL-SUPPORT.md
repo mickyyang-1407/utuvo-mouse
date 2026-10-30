@@ -13,6 +13,10 @@ independent source review. Physical MX Anywhere 3 inspection remains unverified.
 長期目標是：接上新滑鼠 → 開發 AI 加入支援 → 隔離測試 → 實機驗證 → 審查與簽章更新。
 首例為 MX Anywhere 3。本候選版實作本機任務及開發端 companion，尚未宣稱 Anywhere 3 可設定。
 
+Have the mouse available on another Mac? Use the
+[copyable first-device handoff for its owner's AI](AI-FIRST-DEVICE.md) to collect
+the missing report from the reviewed preview, without replacing an installed app.
+
 ## What the app does
 
 - A newly observed, unsupported Logitech mouse creates one local task per

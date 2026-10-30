@@ -7,7 +7,11 @@ MX Anywhere 3 was available during development; the input was an upstream
 research seed, not a detected device.
 
 本預覽只有明確同意的唯讀能力檢查，尚未實機驗證，也沒有 DPI、SmartShift、滾輪或按鍵
-設定控制。原有自動辨識維持被動路徑；一般 App 不會因此開啟 Anywhere 3。
+設定控制。啟動與自動辨識維持被動路徑；只有明確執行檢查指令或點選「收集能力」才會查詢。
+
+For an owner's AI starting from a download, use the
+[first-device handoff](AI-FIRST-DEVICE.md). It identifies the preview source and
+keeps the existing installed app intact.
 
 ## Build and inspect
 
@@ -67,12 +71,18 @@ still require real-device checks.
 
 ## Evidence and sources
 
-The actual configured Codex CLI produced this candidate from public/synthetic
-inputs. The companion built the full source and ran 186 mock/synthetic tests in
-29 suites under its separate OS sandbox, including the capability-record
-validator, the shared cross-language fingerprint fixture and the import-route
-gates. Five actual executable help/consent/wrong-model/mixed-mode gates passed
-without a consented hardware invocation.
+The actual configured Codex CLI produced the original read-only inspection
+candidate from public/synthetic inputs. Its companion built that source and ran
+**167 mock/synthetic tests in 28 suites** under its separate OS sandbox. Five
+actual executable help/consent/wrong-model/mixed-mode gates passed without a
+consented hardware invocation.
+
+The later capability-report handoff was implemented separately and passed
+**197 mock/synthetic Swift tests in 30 suites** and **24 isolated companion
+fixtures**. Its report-driven agent runs use a fake agent; they do not prove a
+second real Codex run or a physical mouse query. Independent executable import
+checks used the test OS sandbox and a synthetic fingerprint oracle. These later
+results must not be attributed to the earlier real-Codex trial.
 An isolated Core Foundation timer fixture also checked async main-run-loop
 behavior. Independent source review passed. These are program evidence, not
 physical evidence, an installed update or a public binary release.

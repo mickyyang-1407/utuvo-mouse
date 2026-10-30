@@ -20,6 +20,8 @@ states. These preview features are **not included in the 0.3.3 download** above.
 The app itself does not run an AI or upload device data. See
 [developer setup and limits](docs/MODEL-SUPPORT.md)
 and [MX Anywhere 3 inspection](docs/MX-ANYWHERE-3-INSPECTION.md).
+For the first real device, give its owner's AI the
+[copyable collection handoff](docs/AI-FIRST-DEVICE.md).
 
 本預覽分支提供去識別本機任務、另行啟動的 Codex 開發 companion，以及 MX Anywhere 3
 Bluetooth 的明確同意唯讀檢查。能力報告可用 `--import-capabilities FILE [--support-directory DIRECTORY]`
