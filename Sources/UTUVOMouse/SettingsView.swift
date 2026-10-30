@@ -16,6 +16,9 @@ struct SettingsView: View {
             updateSection
         }
         .formStyle(.grouped)
+        .tint(MouseTheme.accent)
+        .scrollContentBackground(.hidden)
+        .background(MouseTheme.canvas)
         .frame(width: 560, height: 560)
         .task { await settings.load() }
     }

@@ -14,6 +14,7 @@ public enum MappedAction: String, Codable, Sendable, CaseIterable {
     case native
     case copy
     case paste
+    case actionsRing
 
     public func title(language: MouseLanguage) -> String {
         let localizer = MouseLocalizer(language: language)
@@ -21,6 +22,7 @@ public enum MappedAction: String, Codable, Sendable, CaseIterable {
         case .native: localizer.string("action.native")
         case .copy: localizer.string("action.copy")
         case .paste: localizer.string("action.paste")
+        case .actionsRing: localizer.string("ring.title")
         }
     }
 }
@@ -45,7 +47,7 @@ public final class SystemActionPerformer: ActionPerforming, @unchecked Sendable 
         switch action {
         case .copy: postCommand(key: CGKeyCode(kVK_ANSI_C))
         case .paste: postCommand(key: CGKeyCode(kVK_ANSI_V))
-        case .native: break
+        case .native, .actionsRing: break
         }
     }
 
@@ -76,7 +78,8 @@ public enum DiversionRestoreResult: Sendable, Equatable {
 /// device had before is written down before the first change.
 public final class MXButtonRemapper: @unchecked Sendable {
     /// The control IDs of the three buttons this app may divert on the MX Master 4 M.
-    public static let allowedCIDs: Set<UInt16> = [0x0052, 0x0053, 0x0056]
+    public static let ringCID: UInt16 = 0x01A0
+    public static let allowedCIDs: Set<UInt16> = [0x0052, 0x0053, 0x0056, ringCID]
 
     private let client: HIDPPClient
     private let reprogram: ReprogramControlsClient
@@ -86,6 +89,8 @@ public final class MXButtonRemapper: @unchecked Sendable {
     /// Whether the remapper may divert. Injectable so the tests can run without
     /// the accessibility permission.
     private let accessibilityGranted: () -> Bool
+    /// true = press, false = release, nil = cancel without executing.
+    private let ringEvent: (@Sendable (Bool?) -> Void)?
     private let lock = NSLock()
     private var pressed: Set<UInt16> = []
     private var mappings: [UInt16: MappedAction] = [:]
@@ -102,7 +107,8 @@ public final class MXButtonRemapper: @unchecked Sendable {
         store: DiversionStateStore,
         deviceID: String,
         performer: ActionPerforming = SystemActionPerformer(),
-        accessibilityGranted: @escaping () -> Bool = { AXIsProcessTrusted() }
+        accessibilityGranted: @escaping () -> Bool = { AXIsProcessTrusted() },
+        ringEvent: (@Sendable (Bool?) -> Void)? = nil
     ) {
         self.client = client
         self.reprogram = reprogram
@@ -110,6 +116,7 @@ public final class MXButtonRemapper: @unchecked Sendable {
         self.deviceID = deviceID
         self.performer = performer
         self.accessibilityGranted = accessibilityGranted
+        self.ringEvent = ringEvent
     }
 
     /// Whether macOS lets this process post keyboard events.
@@ -142,6 +149,7 @@ public final class MXButtonRemapper: @unchecked Sendable {
             mappings = [:]
             pressed = []
         }
+        ringEvent?(nil)
     }
 
     /// Diverts the chosen controls. Only ever called from an explicit user action.
@@ -174,6 +182,10 @@ public final class MXButtonRemapper: @unchecked Sendable {
         let controls = try await reprogram.readControls()
         for cid in targets.keys {
             guard Self.allowedCIDs.contains(cid) else {
+                throw DiversionError.notAllowed(cid: cid)
+            }
+            guard (cid == Self.ringCID) == (targets[cid] == .actionsRing),
+                  targets[cid] != .actionsRing || ringEvent != nil else {
                 throw DiversionError.notAllowed(cid: cid)
             }
             guard let control = controls.first(where: { $0.cid == cid }) else {
@@ -250,6 +262,7 @@ public final class MXButtonRemapper: @unchecked Sendable {
     /// Only the controls of this session are restored. A lease of an earlier run
     /// belongs to a state this app cannot see any more — it is left alone.
     public func disable() async throws -> DiversionRestoreResult {
+        ringEvent?(nil)
         // Stop dispatching first: no action may run while the device is restored.
         let owned: Set<UInt16> = lock.withLock {
             mappings = [:]
@@ -313,13 +326,14 @@ public final class MXButtonRemapper: @unchecked Sendable {
     }
 
     private func press(_ cid: UInt16) {
-        lock.withLock {
-            guard connectionValid, let action = mappings[cid], action != .native else { return }
-            performer.perform(action)
-        }
+        let action = lock.withLock { connectionValid ? mappings[cid] : nil }
+        guard let action, action != .native else { return }
+        if action == .actionsRing { ringEvent?(true) }
+        else { performer.perform(action) }
     }
 
     private func release(_ cid: UInt16) {
-        // The command events are complete on press, so nothing is held here.
+        let isRing = lock.withLock { connectionValid && mappings[cid] == .actionsRing }
+        if isRing { ringEvent?(false) }
     }
 }

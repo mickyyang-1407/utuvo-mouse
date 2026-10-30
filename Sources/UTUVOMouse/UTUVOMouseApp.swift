@@ -50,7 +50,8 @@ struct UTUVOMouseApp: App {
                 .preferredColorScheme(LaunchOptions.appearance)
                 .onAppear { AppLifecycle.shared.model = model }
         }
-        .defaultSize(width: 960, height: 700)
+        .defaultSize(width: 1040, height: 760)
+        .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
 
         Settings {
@@ -80,6 +81,7 @@ struct UTUVOMouseApp: App {
 @MainActor
 @Observable
 final class AppModel {
+    let actionRing = ActionRingController(isDemo: LaunchOptions.demoMode)
     var snapshots: [DeviceSnapshot] = []
     var selectedID: String?
     var isBusy = false
@@ -355,6 +357,7 @@ final class AppModel {
     /// Stops the previous connection immediately; its persisted lease is retained.
     /// A new connection needs an explicit Enable and fresh ownership checks.
     private func invalidateConnection(_ deviceID: String) {
+        actionRing.cancel()
         remappers.removeValue(forKey: deviceID)?.stopDispatch()
         remapperTokens[deviceID] = nil
         observingTokens[deviceID] = nil
@@ -424,6 +427,7 @@ final class AppModel {
     ///
     /// This is the cleanup both the quit path and the update path run.
     func restoreDiversions() async -> Bool {
+        actionRing.cancel()
         if isBusy {
             errorMessage = AppLocalization.text("app.operationInProgress")
             return false
@@ -598,6 +602,9 @@ final class AppModel {
                 return
             }
             do {
+                if !remapper.ownedControls.isEmpty {
+                    _ = try await remapper.disable()
+                }
                 try await remapper.enable(mappings: mappings)
                 do {
                     try self.mappingPreferences.recordVerifiedEnable(deviceID: device.id, choices: savedChoices)
@@ -616,6 +623,27 @@ final class AppModel {
                 self.errorMessage = AppLocalization.errorMessage(error)
             }
         }
+    }
+
+    /// Reconfigure the same owned lease, preserving the saved side-button choices.
+    func setActionRingEnabled(device: DeviceSnapshot, enabled: Bool) async {
+        let saved = mappingPreferences.savedMapping(for: device.id)
+        var choices = saved?.enabledIntent == true ? (saved?.choices.mapValues {
+            MappedAction(rawValue: $0.rawValue) ?? .native
+        } ?? [:]) : [:]
+        choices[MXButtonRemapper.ringCID] = enabled ? .actionsRing : .native
+        if choices.values.contains(where: { $0 != .native }) {
+            await enableButtonMapping(device: device, mappings: choices)
+        } else {
+            await disableButtonMapping(device: device)
+        }
+    }
+
+    func isActionRingEnabled(for device: DeviceSnapshot) -> Bool {
+        guard remapperTokens[device.id] == device.connectionEpoch,
+              let mapper = remappers[device.id] else { return false }
+        return mapper.ownedControls.contains(MXButtonRemapper.ringCID)
+            && !mapper.uncertainControls.contains(MXButtonRemapper.ringCID)
     }
 
     /// Restores the original reporting state of the diverted controls.
@@ -680,7 +708,15 @@ final class AppModel {
             client: client,
             reprogram: reprogram,
             store: DiversionStateStore(root: root),
-            deviceID: device.id
+            deviceID: device.id,
+            ringEvent: { [weak self] down in
+                Task { @MainActor in
+                    guard let self, self.remapperTokens[device.id] == token else { return }
+                    if down == true, self.isBusy || !self.exitCoordinator.allowsDeviceOperations { return }
+                    if down == true, self.remappers[device.id]?.ownedControls.contains(MXButtonRemapper.ringCID) != true { return }
+                    self.actionRing.input(down)
+                }
+            }
         )
         remappers[device.id] = remapper
         remapperTokens[device.id] = token
@@ -720,107 +756,87 @@ struct ContentView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        VStack(spacing: 0) {
-            topBar
-            Divider()
-            HSplitView {
-                sidebar
-                    .frame(minWidth: 180, idealWidth: 200, maxWidth: 230)
+        HStack(spacing: 0) {
+            sidebar.frame(width: 210)
+            VStack(spacing: 0) {
+                HStack {
+                    if model.isDemo { Text(AppLocalization.text("app.demo")).foregroundStyle(.orange) }
+                    Spacer()
+                    Button { Task { await model.refresh() } } label: {
+                        Image(systemName: "arrow.clockwise").frame(width: 26, height: 24)
+                    }
+                    .disabled(model.isBusy)
+                    .help(AppLocalization.text("app.refresh"))
+                    .accessibilityLabel(AppLocalization.text("app.refresh"))
+                    .keyboardShortcut("r", modifiers: .command)
+                    SettingsLink { Image(systemName: "slider.horizontal.3").frame(width: 26, height: 24) }
+                        .help(SettingsStrings.exit.settingsHelp)
+                        .accessibilityLabel(SettingsStrings.exit.settingsHelp)
+                }
+                .buttonStyle(.borderless)
+                .padding(.horizontal, 28).padding(.top, 17).padding(.bottom, 2)
                 detail
-                    .frame(minWidth: 480)
+                statusBar
             }
-            Divider()
-            statusBar
+            .background(MouseTheme.canvas)
         }
-        .frame(minWidth: 760, minHeight: 600)
+        .tint(MouseTheme.accent)
+        .groupBoxStyle(MouseGroupStyle())
+        .frame(minWidth: 820, minHeight: 640)
         .task { model.start() }
     }
 
-    private var topBar: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "computermouse")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-            Text(AppLocalization.text("app.title"))
-                .font(.headline)
-            if model.isDemo {
-                Label(AppLocalization.text("app.demo"), systemImage: "exclamationmark.triangle.fill")
-                    .labelStyle(.titleAndIcon)
-                    .font(.callout)
-                    .foregroundStyle(.orange)
-                    .help(AppLocalization.text("app.demo.help"))
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("UTUVO").font(.system(size: 11, weight: .semibold)).tracking(3).foregroundStyle(.secondary)
+                Text("Mouse").font(.system(size: 30, weight: .semibold)).tracking(-1)
+            }.padding(.horizontal, 23).padding(.top, 52).padding(.bottom, 38)
+            Text(AppLocalization.text("app.devices")).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                .padding(.horizontal, 23).padding(.bottom, 13)
+            ForEach(model.mice) { snapshot in
+                Button { model.selectedID = snapshot.id } label: {
+                    HStack(spacing: 11) {
+                        MouseIllustration(model: snapshot.identity.model, compact: true).frame(width: 31, height: 45)
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(snapshot.identity.model == .mxMaster4 ? "MX Master 4" : "SUPERSTRIKE")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text(snapshot.identity.transport.displayTitle(language: AppLocalization.localizer.language))
+                                .font(.system(size: 10)).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                        if snapshot.needsInputMonitoring || model.uncertain[snapshot.id] != nil {
+                            Image(systemName: "exclamationmark.circle").foregroundStyle(.orange)
+                        }
+                    }
+                    .padding(.horizontal, 11).padding(.vertical, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(model.selected?.id == snapshot.id ? MouseTheme.surface : .clear, in: RoundedRectangle(cornerRadius: 13))
+                    .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(.primary.opacity(model.selected?.id == snapshot.id ? 0.06 : 0), lineWidth: 1))
+                    .contentShape(RoundedRectangle(cornerRadius: 13))
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(model.selected?.id == snapshot.id ? [.isSelected] : [])
+                .padding(.horizontal, 12).padding(.bottom, 6)
+            }
+            if model.mice.isEmpty {
+                Text(AppLocalization.text(model.isScanning ? "app.scanning" : "app.noDevices"))
+                    .font(.callout).foregroundStyle(.secondary).padding(23)
             }
             Spacer()
-            Button {
-                Task { await model.refresh() }
-            } label: {
-                if model.isBusy {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Label(AppLocalization.text("app.refresh"), systemImage: "arrow.clockwise")
-                }
-            }
-            .disabled(model.isBusy)
-            .keyboardShortcut("r", modifiers: .command)
-            SettingsLink {
-                Image(systemName: "gearshape")
-            }
-            .help(SettingsStrings.exit.settingsHelp)
-            .accessibilityLabel(SettingsStrings.exit.settingsHelp)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-    }
-
-    private var sidebar: some View {
-        List(selection: Bindable(model).selectedID) {
-            Section(AppLocalization.text("app.devices")) {
-                if model.mice.isEmpty {
-                    if model.isScanning {
-                        Label(AppLocalization.text("app.scanning"), systemImage: "dot.radiowaves.left.and.right")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text(AppLocalization.text("app.noDevices"))
-                        .foregroundStyle(.secondary)
-                    }
-                }
-                ForEach(model.mice) { snapshot in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(snapshot.identity.model.displayTitle(language: AppLocalization.localizer.language))
-                            .font(.body.weight(.medium))
-                        HStack(spacing: 4) {
-                            Text(snapshot.identity.transport.displayTitle(language: AppLocalization.localizer.language))
-                            if let percentage = snapshot.battery.percentage {
-                                Text("· \(percentage)%")
-                            } else {
-                                Text("· " + AppLocalization.text("app.unknownBattery"))
-                            }
-                            if snapshot.needsInputMonitoring {
-                                Image(systemName: "lock.fill").foregroundStyle(.orange)
-                            }
-                            if model.uncertain[snapshot.id] != nil {
-                                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-                            }
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-                    .tag(snapshot.id)
-                    .accessibilityElement(children: .combine)
-                }
-            }
             if !model.diagnostics.isEmpty {
-                Section(AppLocalization.text("app.diagnostics")) {
-                    ForEach(model.diagnostics, id: \.self) { line in
-                        Text(line)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                DisclosureGroup(AppLocalization.text("app.diagnostics")) {
+                    ForEach(model.diagnostics, id: \.self) { Text($0).font(.caption2).textSelection(.enabled) }
+                }.font(.caption).foregroundStyle(.secondary).padding(18)
             }
+            HStack(spacing: 7) {
+                Image(systemName: "computermouse.fill").foregroundStyle(MouseTheme.accent)
+                Text("UTUVO Mouse").font(.system(size: 11, weight: .medium))
+            }.foregroundStyle(.secondary).padding(.horizontal, 23).padding(.bottom, 23)
         }
-        .listStyle(.sidebar)
+        .frame(maxHeight: .infinity)
+        .background(.primary.opacity(0.025))
+        .overlay(alignment: .trailing) { Rectangle().fill(.primary.opacity(0.06)).frame(width: 1) }
     }
 
     @ViewBuilder
@@ -828,7 +844,7 @@ struct ContentView: View {
         if let snapshot = model.selected {
             ScrollView {
                 DeviceDetailView(snapshot: snapshot)
-                    .padding(16)
+                    .padding(.horizontal, 28).padding(.top, 8).padding(.bottom, 24)
             }
         } else {
             VStack(spacing: 8) {

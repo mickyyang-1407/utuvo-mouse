@@ -251,6 +251,7 @@ nonisolated enum DemoData {
             ReprogramControl(index: 2, cid: 0x0052, taskID: 0x0003, flags: 0x0531, position: 3, group: 2, groupMask: 0x04),
             ReprogramControl(index: 3, cid: 0x0053, taskID: 0x0004, flags: 0x0531, position: 4, group: 2, groupMask: 0x04),
             ReprogramControl(index: 4, cid: 0x0056, taskID: 0x0005, flags: 0x0531, position: 5, group: 2, groupMask: 0x04),
+            ReprogramControl(index: 5, cid: 0x01A0, taskID: 0x01A0, flags: 0x0531, position: 6, group: 2, groupMask: 0x04),
         ]
         snapshot.issues = [text.string("device.demo.issue")]
         return snapshot

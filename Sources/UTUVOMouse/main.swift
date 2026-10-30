@@ -5,6 +5,16 @@ import UTUVOMouseLocalization
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 
+#if DEBUG
+// Isolated native design fixture. Production builds ignore these bundle keys.
+if Bundle.main.object(forInfoDictionaryKey: "UTUVOMouseDemoFixture") as? Bool == true {
+    LaunchOptions.demoMode = true
+    if let language = Bundle.main.object(forInfoDictionaryKey: "UTUVOMouseFixtureLanguage") as? String {
+        LaunchOptions.languageOverride = MouseLanguage(rawValue: language)
+    }
+}
+#endif
+
 if arguments.contains("--demo") {
     LaunchOptions.demoMode = true
 }
@@ -48,5 +58,11 @@ if let index = arguments.firstIndex(of: "--appearance"), index + 1 < arguments.c
     default: break
     }
 }
+
+#if DEBUG
+if let value = Bundle.main.object(forInfoDictionaryKey: "UTUVOMouseFixtureAppearance") as? String {
+    LaunchOptions.appearance = value == "dark" ? .dark : .light
+}
+#endif
 
 UTUVOMouseApp.main()

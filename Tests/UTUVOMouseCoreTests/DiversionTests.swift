@@ -407,3 +407,59 @@ struct DiversionDispatchTests {
         #expect(spy.actions.isEmpty)
     }
 }
+
+private final class RingEventSpy: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [Bool?] = []
+    func record(_ value: Bool?) { lock.withLock { recorded.append(value) } }
+    var events: [Bool?] { lock.withLock { recorded } }
+}
+
+@Suite("Haptic thumb button Ring dispatch")
+struct RingDiversionTests {
+    @Test("physical down/release dispatch once, unrelated frames ignored, cancellation never executes")
+    func pressReleaseAndCancel() async throws {
+        let device = FakeReprog(); device.controls.append((0x01A0, 0x0531))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ring-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = DiversionStateStore(root: root)
+        let transport = MockHIDPPTransport { device.reply(to: $0) }
+        let client = try HIDPPClient(transport: transport, deviceIndex: 0xFF)
+        let reprog = try #require(await ReprogramControlsClient.resolve(for: client))
+        let events = RingEventSpy()
+        let mapper = MXButtonRemapper(client: client, reprogram: reprog, store: store, deviceID: "ring-test",
+            accessibilityGranted: { true }, ringEvent: { events.record($0) })
+        try await mapper.enable(mappings: [0x01A0: .actionsRing])
+        func frame(_ pressed: Bool, index: UInt8 = 0xFF, software: UInt8 = 0) -> [UInt8] {
+            [0x11, index, 0x05, software, pressed ? 0x01 : 0, pressed ? 0xA0 : 0] + Array(repeating: 0, count: 14)
+        }
+        mapper.handle(frame: frame(true, index: 1)); mapper.handle(frame: frame(true, software: 1))
+        #expect(events.events.isEmpty)
+        mapper.handle(frame: frame(true)); mapper.handle(frame: frame(true)); mapper.handle(frame: frame(false))
+        #expect(events.events == [true, false])
+        mapper.handle(frame: frame(true)); mapper.stopDispatch(); mapper.handle(frame: frame(false))
+        #expect(events.events == [true, false, true, nil])
+        #expect(mapper.ownedControls == [0x01A0])
+    }
+
+    @Test("normal disable restores the thumb button and never touches rawXY or persistent/remap fields")
+    func restore() async throws {
+        let device = FakeReprog(); device.controls.append((0x01A0, 0x0531))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ring-restore-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let transport = MockHIDPPTransport { device.reply(to: $0) }
+        let client = try HIDPPClient(transport: transport, deviceIndex: 0xFF)
+        let reprog = try #require(await ReprogramControlsClient.resolve(for: client))
+        let events = RingEventSpy()
+        let mapper = MXButtonRemapper(client: client, reprogram: reprog, store: DiversionStateStore(root: root), deviceID: "ring-test",
+            accessibilityGranted: { true }, ringEvent: { events.record($0) })
+        try await mapper.enable(mappings: [0x01A0: .actionsRing])
+        #expect(device.diverted == [0x01A0])
+        _ = try await mapper.disable()
+        #expect(device.diverted.isEmpty)
+        #expect(events.events == [nil])
+        let writes = transport.sentFrames.filter { $0[2] == 5 && $0[3] >> 4 == 3 }
+        #expect(writes.map { $0[6] } == [3, 2])
+        #expect(writes.allSatisfy { Array($0[7...9]) == [0,0,0] })
+    }
+}

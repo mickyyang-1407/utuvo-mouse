@@ -7,6 +7,7 @@ public enum MXMappingAction: String, Codable, CaseIterable, Sendable {
     case native
     case copy
     case paste
+    case actionsRing
 }
 
 /// A saved choice and the user's explicit request to keep it enabled.
@@ -25,7 +26,7 @@ public struct MXSavedMapping: Codable, Equatable, Sendable {
 /// The complete, versioned app-only mapping preference file.
 public struct MXMappingPreferenceDocument: Codable, Equatable, Sendable {
     public static let currentVersion = 1
-    public static let allowedCIDs: Set<UInt16> = [0x0052, 0x0053, 0x0056]
+    public static let allowedCIDs: Set<UInt16> = [0x0052, 0x0053, 0x0056, 0x01A0]
 
     public var version: Int
     public var restoreEnabledAtLaunch: Bool
@@ -53,6 +54,9 @@ public struct MXMappingPreferenceDocument: Codable, Equatable, Sendable {
             guard mapping.choices.keys.allSatisfy(Self.allowedCIDs.contains) else {
                 throw MXMappingPreferenceError.invalidControl
             }
+            guard mapping.choices.allSatisfy({ cid, action in
+                action == .native || ((cid == 0x01A0) == (action == .actionsRing))
+            }) else { throw MXMappingPreferenceError.invalidControl }
             if mapping.enabledIntent && !mapping.choices.values.contains(where: { $0 != .native }) {
                 throw MXMappingPreferenceError.emptyEnabledMapping
             }

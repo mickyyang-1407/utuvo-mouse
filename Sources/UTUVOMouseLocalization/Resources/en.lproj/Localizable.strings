@@ -351,3 +351,34 @@
 "error.profile.dpiVerify" = "The sensor DPI does not match the selected profile stage. Refresh to confirm the current state.";
 "error.profile.dpiGridUnavailable" = "The sensor DPI grid could not be read. DPI editing is disabled.";
 "error.profile.dpiUnsupported" = "The sensor does not support DPI %@ / %@. Choose a supported value.";
+
+/* M011 — device UI and Action Ring */
+"ui.hits" = "HITS & feel";
+"ui.pointerButtons" = "Pointer & buttons";
+"ui.pointerScroll" = "Pointer & scrolling";
+"ui.buttons" = "Buttons";
+"ring.title" = "Action Ring";
+"ring.customize" = "Make it yours";
+"ring.preview" = "Preview ring";
+"ring.release" = "Release to run";
+"ring.enabled" = "Thumb button enabled";
+"ring.disabled" = "Thumb button not enabled";
+"ring.enable" = "Enable ring";
+"ring.disable" = "Disable ring";
+"ring.instructions" = "Hold the haptic thumb button, move toward an action, then release. Release in the center or press Esc to cancel. Keep UTUVO Mouse running; Options+ must release this button before enabling.";
+"ring.unsupported" = "The mouse has not reported a divertable haptic thumb button. Refresh after it connects.";
+"ring.slot" = "Position %d";
+"ring.chooseAction" = "Choose an action";
+"ring.savedLocally" = "Changes save on this Mac. The ring uses this layout while UTUVO Mouse runs.";
+"ring.storageError" = "The saved ring could not be read. Default actions are shown; choose an action to save a new layout.";
+"ring.action.none" = "No action";
+"ring.action.copy" = "Copy";
+"ring.action.paste" = "Paste";
+"ring.action.cut" = "Cut";
+"ring.action.undo" = "Undo";
+"ring.action.redo" = "Redo";
+"ring.action.selectAll" = "Select all";
+"ring.action.finder" = "Finder";
+"ring.action.spotlight" = "Spotlight";
+"ring.action.screenshot" = "Screenshot";
+"ring.action.missionControl" = "Mission Control";

@@ -21,3 +21,13 @@ HITS codec, DPI stage codec and format-8 profile layout adapted from [jwake/nano
 macOS Command-C / Command-V event handling cross-checked against [TomBadash/Mouser](https://github.com/TomBadash/Mouser), core/key_simulator.py blob 102dee0dc47b2e912c84f860aa1169d44edc85dd, Copyright (c) 2026 Tom Badash, MIT. Full notice: LICENSES/Mouser-MIT.txt.
 
 DPIGrid.swift additionally adapted from Nanostrike blob d0b87a90fc3dbb8b5e31147bee0965805946e0e8 (MIT, same retained notice).
+# Action Ring protocol reference
+
+The MX Master 4 Sense Panel CID 0x01A0 and its temporary-diversion notification
+behavior were checked against CommandBloom by Kirill Dubovitskiy (MIT), commit
+7ed7b0d8b0904904553c71e6578104ccf8fc3555, PROTOCOL.md and ReprogrammableControlsV4.swift.
+https://github.com/bra1nDump/logi-mx-master-gorgeous-action-ring
+The app keeps its existing nonexclusive transport and temporary diversion lease;
+it does not install upstream daemons or change raw-XY/persistent/remap settings.
+License: LICENSES/CommandBloom-MIT.txt. Menu and settings UI are original code.
+

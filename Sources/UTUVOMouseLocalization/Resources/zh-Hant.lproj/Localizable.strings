@@ -351,3 +351,34 @@
 "error.profile.dpiVerify" = "感應器 DPI 與目前選用的板載檔位不同，請重新整理確認實際狀態。";
 "error.profile.dpiGridUnavailable" = "無法讀取感應器 DPI 刻度，已停用 DPI 調整。";
 "error.profile.dpiUnsupported" = "感應器不支援 DPI %@ / %@，請選擇支援的數值。";
+
+/* M011 — device UI and Action Ring */
+"ui.hits" = "HITS 與手感";
+"ui.pointerButtons" = "指標與按鍵";
+"ui.pointerScroll" = "指標與捲動";
+"ui.buttons" = "按鍵";
+"ring.title" = "Action Ring";
+"ring.customize" = "自訂環形選單";
+"ring.preview" = "預覽選單";
+"ring.release" = "放開以執行";
+"ring.enabled" = "已啟用拇指鍵";
+"ring.disabled" = "尚未啟用拇指鍵";
+"ring.enable" = "啟用 Action Ring";
+"ring.disable" = "停用 Action Ring";
+"ring.instructions" = "按住拇指感壓鍵，移向動作後放開。回到中央放開或按 Esc 可取消。使用時須保持 UTUVO Mouse 執行；啟用前，Options+ 須先釋放這個按鍵。";
+"ring.unsupported" = "滑鼠尚未回報可設定的拇指感壓鍵，連線後請重新整理。";
+"ring.slot" = "位置 %d";
+"ring.chooseAction" = "選擇動作";
+"ring.savedLocally" = "變更會儲存在這台 Mac，UTUVO Mouse 執行時會使用這個配置。";
+"ring.storageError" = "無法讀取已儲存的選單，目前顯示預設動作；選擇動作即可儲存新配置。";
+"ring.action.none" = "無動作";
+"ring.action.copy" = "複製";
+"ring.action.paste" = "貼上";
+"ring.action.cut" = "剪下";
+"ring.action.undo" = "復原";
+"ring.action.redo" = "重做";
+"ring.action.selectAll" = "全選";
+"ring.action.finder" = "Finder";
+"ring.action.spotlight" = "Spotlight";
+"ring.action.screenshot" = "螢幕截圖";
+"ring.action.missionControl" = "指揮中心";

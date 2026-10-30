@@ -7,120 +7,72 @@ struct DeviceDetailView: View {
     @Environment(AppModel.self) private var model
     let snapshot: DeviceSnapshot
 
+    @State private var tab = 0
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 18) {
             header
             if snapshot.needsInputMonitoring && !model.isDemo {
                 GroupBox(AppLocalization.text("device.inputMonitoring")) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(snapshot.accessError ?? AppLocalization.text("device.permission.deniedDefault"))
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                        Button(AppLocalization.text("device.openSystemSettings")) { model.openInputMonitoringSettings() }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(snapshot.accessError ?? AppLocalization.text("device.permission.deniedDefault")).foregroundStyle(.secondary)
+                    Button(AppLocalization.text("device.openSystemSettings")) { model.openInputMonitoringSettings() }
                 }
             }
+            HStack(spacing: 25) {
+                if snapshot.identity.model == .superstrike {
+                    DetailTabButton(title: AppLocalization.text("ui.hits"), selected: tab == 0) { tab = 0 }
+                    DetailTabButton(title: AppLocalization.text("ui.pointerButtons"), selected: tab == 1) { tab = 1 }
+                } else {
+                    DetailTabButton(title: AppLocalization.text("ui.pointerScroll"), selected: tab == 0) { tab = 0 }
+                    DetailTabButton(title: AppLocalization.text("ui.buttons"), selected: tab == 1) { tab = 1 }
+                    DetailTabButton(title: AppLocalization.text("ring.title"), selected: tab == 2) { tab = 2 }
+                }
+                Spacer(minLength: 0)
+            }
+            .overlay(alignment: .bottom) { Rectangle().fill(.primary.opacity(0.07)).frame(height: 1).offset(y: 2) }
             switch snapshot.identity.model {
             case .superstrike:
-                HITSControlSection(snapshot: snapshot)
-                ProfileControlSection(snapshot: snapshot)
+                if tab == 0 { HITSControlSection(snapshot: snapshot) }
+                else { ProfileControlSection(snapshot: snapshot) }
             case .mxMaster4:
-                Grid(alignment: .topLeading, horizontalSpacing: 12, verticalSpacing: 12) {
-                    GridRow {
-                        ClassicDPISection(snapshot: snapshot)
-                        SmartShiftSection(snapshot: snapshot)
-                    }
-                    GridRow {
-                        WheelSection(snapshot: snapshot)
-                        SideButtonSection(snapshot: snapshot)
-                    }
+                if tab == 2 { ActionRingSection(snapshot: snapshot) }
+                else if tab == 1 { SideButtonSection(snapshot: snapshot) }
+                else {
+                    ClassicDPISection(snapshot: snapshot)
+                    SmartShiftSection(snapshot: snapshot)
+                    WheelSection(snapshot: snapshot)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            case .unknown:
-                UnavailableSection(
-                    title: AppLocalization.text("device.unknown.title"),
-                    detail: AppLocalization.text("device.unknown.detail")
-                )
-            case .receiver:
-                UnavailableSection(
-                    title: AppLocalization.text("device.receiver.title"),
-                    detail: AppLocalization.text("device.receiver.detail")
-                )
+            default:
+                UnavailableSection(title: AppLocalization.text("device.unknown.title"), detail: AppLocalization.text("device.unknown.detail"))
             }
-            DiagnosticsView(snapshot: snapshot)
+            DiagnosticsView(snapshot: snapshot).padding(.top, 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: snapshot.id) { _, _ in tab = 0 }
     }
 
     private var header: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: 14) {
-                Image(systemName: "computermouse")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                titleBlock
-                Spacer(minLength: 8)
-                statusBlock
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    Image(systemName: "computermouse")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                    titleBlock
+        HStack(spacing: 24) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(snapshot.identity.model == .mxMaster4 ? "MX Master 4" : "SUPERSTRIKE")
+                    .font(.system(size: 30, weight: .semibold)).tracking(-0.8)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                Text(snapshot.identity.model == .mxMaster4 ? "MX Master 4 M for Mac" : "PRO X2 SUPERSTRIKE")
+                    .font(.system(size: 11, weight: .medium)).tracking(0.5).foregroundStyle(.secondary)
+                HStack(spacing: 15) {
+                    Label(snapshot.identity.transport.displayTitle(language: AppLocalization.localizer.language), systemImage: "link")
+                    if let percentage = snapshot.battery.percentage {
+                        Label("\(percentage)%", systemImage: "battery.100")
+                    } else { Text(AppLocalization.text("app.unknownBattery")) }
                 }
-                statusBlock
+                .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+                if snapshot.isDemo { Text(AppLocalization.text("device.demoData")).font(.caption).foregroundStyle(.orange) }
             }
+            Spacer(minLength: 0)
+            MouseIllustration(model: snapshot.identity.model).frame(width: 115, height: 124)
+                .rotationEffect(.degrees(12))
         }
-    }
-
-    private var titleBlock: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(snapshot.identity.model.displayTitle(language: AppLocalization.localizer.language))
-                .font(.title3)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-            if snapshot.isDemo {
-                Text(AppLocalization.text("device.demoData"))
-                    .font(.caption)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.orange.opacity(0.25), in: Capsule())
-            }
-        }
-    }
-
-    private var statusBlock: some View {
-        let language = AppLocalization.localizer.language
-        let transport = snapshot.identity.transport.displayTitle(language: language)
-        let battery = snapshot.battery.percentage.map { "\($0)%" } ?? AppLocalization.text("app.unknownBattery")
-        return HStack(spacing: 12) {
-            Label(transport, systemImage: "link")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            if let percentage = snapshot.battery.percentage {
-                Label("\(percentage)%", systemImage: batterySymbol(percentage))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            } else {
-                Label(AppLocalization.text("app.unknownBattery"), systemImage: "battery.0")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(AppLocalization.localizer.connectionStatusLabel(transport: transport, battery: battery))
-        .fixedSize()
-    }
-
-    private func batterySymbol(_ percentage: Int) -> String {
-        switch percentage {
-        case 75...: "battery.100"
-        case 40...: "battery.50"
-        case 15...: "battery.25"
-        default: "battery.0"
-        }
+        .padding(.vertical, 4)
     }
 }
 
@@ -177,42 +129,45 @@ struct ClassicDPISection: View {
 
     var body: some View {
         GroupBox(AppLocalization.text("device.dpi.title")) {
-            VStack(alignment: .leading, spacing: 8) {
-                if let dpi = snapshot.dpi, let current = dpi.current {
-                    LabeledContent(AppLocalization.text("device.dpi.value"), value: "\(current)")
-                    if dpi.available.isEmpty {
-                        Text(AppLocalization.text("device.dpi.unavailable"))
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Picker(AppLocalization.text("device.dpi.picker"), selection: $draft) {
-                            Text(AppLocalization.text("common.select")).tag(Int?.none)
-                            ForEach(dpi.available, id: \.self) { value in
-                                Text("\(value)").tag(Int?.some(value))
-                            }
-                        }
-                        .frame(width: 200)
-                        .disabled(model.isBusy || model.isDemo)
-                        HStack {
-                            Button(AppLocalization.text("common.apply")) {
-                                guard let draft else { return }
-                                Task { await model.applyClassicDPI(device: snapshot, value: draft) }
-                            }
-                            .disabled(draft == nil || model.isBusy || model.isDemo)
-                            Button(AppLocalization.text("common.cancel")) { draft = nil }
-                                .disabled(draft == nil)
-                        }
+            if let dpi = snapshot.dpi, let current = dpi.current {
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: 28) {
+                        dpiValue(current)
+                        Spacer(minLength: 18)
+                        dpiControls(dpi.available)
                     }
-                } else {
-                    Text(AppLocalization.text("device.dpi.unknown"))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 16) { dpiValue(current); dpiControls(dpi.available) }
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            } else { Text(AppLocalization.text("device.dpi.unknown")).foregroundStyle(.secondary) }
         }
         .onChange(of: snapshot.connectionEpoch) { _, _ in draft = nil }
     }
+    private func dpiValue(_ current: Int) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
+            Text(current.formatted()).font(.system(size: 35, weight: .medium)).monospacedDigit().tracking(-1.2)
+            Text("DPI").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+        }
+    }
+
+    private func dpiControls(_ available: [Int]) -> some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            if available.isEmpty {
+                Text(AppLocalization.text("device.dpi.unavailable")).font(.callout).foregroundStyle(.secondary)
+            } else {
+                Picker(AppLocalization.text("device.dpi.picker"), selection: $draft) {
+                    Text(AppLocalization.text("common.select")).tag(Int?.none)
+                    ForEach(available, id: \.self) { Text("\($0)").tag(Int?.some($0)) }
+                }.frame(width: 235).disabled(model.isBusy || model.isDemo)
+                HStack(spacing: 8) {
+                    Button(AppLocalization.text("common.cancel")) { draft = nil }.disabled(draft == nil)
+                    Button(AppLocalization.text("common.apply")) {
+                        guard let draft else { return }; Task { await model.applyClassicDPI(device: snapshot, value: draft) }
+                    }.buttonStyle(.borderedProminent).disabled(draft == nil || model.isBusy || model.isDemo)
+                }
+            }
+        }
+    }
+
 }
 
 /// SmartShift (0x2111) — MX Master 4 M.
@@ -226,17 +181,21 @@ struct SmartShiftSection: View {
         GroupBox(AppLocalization.text("device.smartShift.title")) {
             VStack(alignment: .leading, spacing: 8) {
                 if let state = snapshot.smartShift, let currentMode = state.mode, let currentThreshold = state.threshold {
-                    LabeledContent(AppLocalization.text("device.smartShift.mode"), value: AppLocalization.text(currentMode == 2 ? "device.smartShift.ratchet" : "device.smartShift.free"))
-                    LabeledContent(AppLocalization.text("device.smartShift.threshold"), value: "\(currentThreshold)")
-                    if let torque = state.torque {
-                        LabeledContent(AppLocalization.text("device.smartShift.torque"), value: "\(torque)%")
-                    }
+                    HStack {
+                        Text(AppLocalization.text(currentMode == 2 ? "device.smartShift.ratchet" : "device.smartShift.free"))
+                            .font(.system(size: 15, weight: .medium))
+                        Spacer()
+                        if let torque = state.torque {
+                            Text(AppLocalization.text("device.smartShift.torque") + " \(torque)%")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }.padding(.bottom, 8)
                     Picker(AppLocalization.text("device.smartShift.picker"), selection: $mode) {
                         Text(AppLocalization.text("common.select")).tag(Int?.none)
                         Text(AppLocalization.text("device.smartShift.free")).tag(Int?.some(1))
                         Text(AppLocalization.text("device.smartShift.ratchet")).tag(Int?.some(2))
                     }
-                    .frame(width: 200)
+                    .frame(maxWidth: .infinity)
                     .disabled(model.isBusy || model.isDemo)
                     Stepper(AppLocalization.text("device.smartShift.stepper", threshold ?? currentThreshold), value: Binding(
                         get: { threshold ?? currentThreshold },
@@ -244,6 +203,7 @@ struct SmartShiftSection: View {
                     ), in: 1...254)
                         .disabled(model.isBusy || model.isDemo)
                     HStack {
+                        Spacer()
                         Button(AppLocalization.text("common.apply")) {
                             Task { await model.applySmartShift(device: snapshot, mode: mode, threshold: threshold) }
                         }
@@ -278,13 +238,16 @@ struct WheelSection: View {
                         get: { inverted ?? state.inverted ?? false },
                         set: { inverted = $0 }
                     ))
+                    .toggleStyle(.switch)
                     .disabled(model.isBusy || model.isDemo)
                     Toggle(AppLocalization.text("device.wheel.highResolution"), isOn: Binding(
                         get: { highResolution ?? state.highResolution ?? false },
                         set: { highResolution = $0 }
                     ))
+                    .toggleStyle(.switch)
                     .disabled(model.isBusy || model.isDemo)
                     HStack {
+                        Spacer()
                         Button(AppLocalization.text("common.apply")) {
                             Task {
                                 await model.applyWheel(
@@ -317,7 +280,7 @@ struct SideButtonSection: View {
     @State private var actions: [UInt16: MappedAction] = [:]
 
     private var candidates: [ReprogramControl] {
-        snapshot.reprogControls.filter { $0.isDivertCandidate && MXButtonRemapper.allowedCIDs.contains($0.cid) }
+        snapshot.reprogControls.filter { $0.isDivertCandidate && MXButtonRemapper.allowedCIDs.contains($0.cid) && $0.cid != MXButtonRemapper.ringCID }
     }
 
     private func selectedAction(for cid: UInt16) -> MappedAction {
@@ -329,7 +292,12 @@ struct SideButtonSection: View {
     }
 
     private var effectiveActions: [UInt16: MappedAction] {
-        Dictionary(uniqueKeysWithValues: candidates.map { ($0.cid, selectedAction(for: $0.cid)) })
+        var values = Dictionary(uniqueKeysWithValues: candidates.map { ($0.cid, selectedAction(for: $0.cid)) })
+        if let saved = model.mappingPreferences.savedMapping(for: snapshot.id), saved.enabledIntent,
+           saved.choices[MXButtonRemapper.ringCID] == .actionsRing {
+            values[MXButtonRemapper.ringCID] = .actionsRing
+        }
+        return values
     }
 
     /// The button name; the raw control ID stays in the diagnostics.
@@ -359,7 +327,7 @@ struct SideButtonSection: View {
                                 get: { selectedAction(for: control.cid) },
                                 set: { actions[control.cid] = $0 }
                             )) {
-                                ForEach(MappedAction.allCases, id: \.self) { action in
+                                ForEach(MappedAction.allCases.filter { $0 != .actionsRing }, id: \.self) { action in
                                     Text(action.title(language: AppLocalization.localizer.language)).tag(action)
                                 }
                             }
@@ -448,7 +416,7 @@ struct HITSButtonColumn: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(AppLocalization.text(config.button == 0 ? "device.hits.left" : "device.hits.right"))
                 .font(.headline)
-            LabeledContent(AppLocalization.text("device.hits.actuation"), value: "\(config.actuation)")
+            LabeledContent(AppLocalization.text("device.hits.actuation"), value: "\(Int(actuation ?? Double(config.actuation)))")
             Slider(
                 value: Binding(get: { actuation ?? Double(config.actuation) }, set: { actuation = $0 }),
                 in: 1...Double(min(capabilities.maxActuation, 10)),
@@ -457,7 +425,7 @@ struct HITSButtonColumn: View {
             .disabled(model.isBusy || model.isDemo)
             LabeledContent(
                 AppLocalization.text("device.hits.rapidTrigger"),
-                value: config.rapidTriggerEnabled ? String(config.rapidTrigger) : AppLocalization.text("device.hits.off")
+                value: (rapidTriggerChoice ?? (config.rapidTriggerEnabled ? config.rapidTrigger : 0)) == 0 ? AppLocalization.text("device.hits.off") : String(rapidTriggerChoice ?? config.rapidTrigger)
             )
             Picker(AppLocalization.text("device.hits.rapidTrigger"), selection: Binding(get: { rapidTriggerChoice ?? (config.rapidTriggerEnabled ? config.rapidTrigger : 0) }, set: { rapidTriggerChoice = $0 })) {
                 Text(AppLocalization.text("device.hits.off")).tag(0)
@@ -468,7 +436,7 @@ struct HITSButtonColumn: View {
             .labelsHidden()
             .frame(width: 150)
             .disabled(model.isBusy || model.isDemo)
-            LabeledContent(AppLocalization.text("device.hits.feedback"), value: "\(config.haptics)")
+            LabeledContent(AppLocalization.text("device.hits.feedback"), value: "\(Int(haptics ?? Double(config.haptics)))")
             Slider(
                 value: Binding(get: { haptics ?? Double(config.haptics) }, set: { haptics = $0 }),
                 in: 0...Double(min(capabilities.maxHaptics, 5)),
