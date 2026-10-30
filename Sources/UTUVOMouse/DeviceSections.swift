@@ -10,7 +10,7 @@ struct DeviceDetailView: View {
     @State private var tab = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 13) {
             header
             if snapshot.needsInputMonitoring && !model.isDemo {
                 GroupBox(AppLocalization.text("device.inputMonitoring")) {
@@ -18,7 +18,8 @@ struct DeviceDetailView: View {
                     Button(AppLocalization.text("device.openSystemSettings")) { model.openInputMonitoringSettings() }
                 }
             }
-            HStack(spacing: 25) {
+            if snapshot.identity.model.supportsConfiguration {
+            HStack(spacing: 20) {
                 if snapshot.identity.model == .superstrike {
                     DetailTabButton(title: AppLocalization.text("ui.hits"), selected: tab == 0) { tab = 0 }
                     DetailTabButton(title: AppLocalization.text("ui.pointerButtons"), selected: tab == 1) { tab = 1 }
@@ -30,6 +31,7 @@ struct DeviceDetailView: View {
                 Spacer(minLength: 0)
             }
             .overlay(alignment: .bottom) { Rectangle().fill(.primary.opacity(0.07)).frame(height: 1).offset(y: 2) }
+            }
             switch snapshot.identity.model {
             case .superstrike:
                 if tab == 0 { HITSControlSection(snapshot: snapshot) }
@@ -43,7 +45,7 @@ struct DeviceDetailView: View {
                     WheelSection(snapshot: snapshot)
                 }
             default:
-                UnavailableSection(title: AppLocalization.text("device.unknown.title"), detail: AppLocalization.text("device.unknown.detail"))
+                UnavailableSection(title: AppLocalization.text("device.unsupported.title"), detail: AppLocalization.text("device.unsupported.detail"))
             }
             DiagnosticsView(snapshot: snapshot).padding(.top, 4)
         }
@@ -52,27 +54,31 @@ struct DeviceDetailView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 24) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(snapshot.identity.model == .mxMaster4 ? "MX Master 4" : "SUPERSTRIKE")
-                    .font(.system(size: 30, weight: .semibold)).tracking(-0.8)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                Text(snapshot.identity.model == .mxMaster4 ? "MX Master 4 M for Mac" : "PRO X2 SUPERSTRIKE")
-                    .font(.system(size: 11, weight: .medium)).tracking(0.5).foregroundStyle(.secondary)
-                HStack(spacing: 15) {
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(snapshot.identity.displayName(language: AppLocalization.localizer.language))
+                    .font(.system(size: 24, weight: .semibold)).tracking(-0.5)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 12) {
                     Label(snapshot.identity.transport.displayTitle(language: AppLocalization.localizer.language), systemImage: "link")
                     if let percentage = snapshot.battery.percentage {
                         Label("\(percentage)%", systemImage: "battery.100")
-                    } else { Text(AppLocalization.text("app.unknownBattery")) }
+                    } else if snapshot.identity.model.supportsConfiguration {
+                        Text(AppLocalization.text("app.unknownBattery"))
+                    }
+                    if !snapshot.identity.model.supportsConfiguration {
+                        Text(AppLocalization.text("device.readOnly"))
+                    }
                 }
                 .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
                 if snapshot.isDemo { Text(AppLocalization.text("device.demoData")).font(.caption).foregroundStyle(.orange) }
             }
             Spacer(minLength: 0)
-            MouseIllustration(model: snapshot.identity.model).frame(width: 115, height: 124)
-                .rotationEffect(.degrees(12))
+            MouseIllustration(model: snapshot.identity.model).frame(width: 65, height: 78)
+                .rotationEffect(.degrees(8))
         }
-        .padding(.vertical, 4)
+        .frame(minHeight: 78)
+
     }
 }
 

@@ -2,9 +2,9 @@
 
 A small, independent native macOS controller for Logitech MX Master 4 for Mac and PRO X2 SUPERSTRIKE. English and Traditional Chinese. MIT licensed. No accounts, cloud profiles, RGB editor, macros or preset marketplace.
 
-[Download 0.3.1 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.3.1) — Developer ID signed, Apple notarized, Gatekeeper accepted.
+[Download 0.3.2 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.3.2) — Developer ID signed, Apple notarized, Gatekeeper accepted.
 
-**0.3.1 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
+**0.3.2 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
 
 ## Essentials
 
@@ -25,6 +25,12 @@ Quit the Options+ / G HUB device agents while another app controls the same mous
 Onboard mode uses settings saved in the mouse. Host mode uses software-managed settings. MX Copy/Paste needs this app running; supported SUPERSTRIKE onboard settings remain in the device. Normal Disable/Quit verifies that owned MX diversion was restored. Disconnects or crashes can require reconnecting the device.
 
 Language changes apply after a safe quit/reopen. Login launch and restoring MX mappings are separate settings, both optional. Automatic update checks/downloads are explicit preferences; the installer waits for safe device cleanup. “Cancel changes” discards an unsaved draft, not an already written profile. Backups: `~/Library/Application Support/UTUVO Mouse/Backups`.
+
+## Automatic identification
+
+Exact product IDs identify MX Master 4 M and USB SUPERSTRIKE. A LIGHTSPEED receiver requires its paired device’s reported name; shared DPI/onboard features never establish a model. Other Logitech mouse collections appear by their macOS-reported name, with a read-only notice and no configuration controls or device opening. [Identification details](docs/IDENTIFICATION.md).
+
+0.3.2 uses a shorter header, narrower sidebar, denser cards and a 900 × 620 default content size (760 × 560 minimum). English, Traditional Chinese, light/dark appearance and the existing login/update preferences remain available.
 
 ## Action Ring
 
@@ -83,6 +89,8 @@ MX 支援電量、DPI、SmartShift、滾輪、中鍵／前後側鍵複製貼上�
 新版以裝置示意圖、分頁與一致的控制層次重新設計，保留英文／繁中與深淺色。在「MX Master 4 → Action Ring」點選八個位置來指定動作；按住拇指鍵、移向動作後放開，中央放開或 Esc 可取消。配置儲存在本機，不修改 Options+ 設定檔。原廠代理須先釋放拇指鍵，且 UTUVO Mouse 須持續執行；下次啟動是否恢復按鍵，仍由設定中的明確選項控制。實際藍牙裝置已通過啟用讀回／停用還原；隔離模擬按鍵測試不冒充實體拇指按壓驗收。
 
 0.3.1 將 Action Ring 每秒 60 次的游標輪詢改成 AppKit 原生滑鼠事件。相同隔離原生測試的靜止 CPU 從單核心 0.370% 降至 0.00574%，每秒中斷喚醒從 60.47 降至 0.50；反覆開關 60 次，兩版都沒有殘留視窗。完整 App 與隔離浮層的耗用分開記錄，詳見[資源量測](docs/PERFORMANCE.md)。
+
+0.3.2 縮短頁首、縮窄側欄與卡片間距。MX Master 4 M／USB SUPERSTRIKE 依產品 ID 自動辨識，LIGHTSPEED 依接收器回報的配對裝置名稱確認；不再靠通用功能猜型號。其他 Logitech 滑鼠可顯示系統回報名稱，僅提供辨識、不開啟或設定裝置。中英文、登入自啟動與自動更新偏好均保留。
 
 ## License
 

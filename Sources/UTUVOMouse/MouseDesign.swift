@@ -20,14 +20,14 @@ enum MouseTheme {
 
 struct MouseGroupStyle: GroupBoxStyle {
     func makeBody(configuration: Configuration) -> some View {
-        VStack(alignment: .leading, spacing: 17) {
+        VStack(alignment: .leading, spacing: 12) {
             configuration.label.font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
             configuration.content
         }
-        .padding(20)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(MouseTheme.surface, in: RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(.primary.opacity(0.065), lineWidth: 1))
+        .background(MouseTheme.surface, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.065), lineWidth: 1))
     }
 }
 
@@ -60,7 +60,7 @@ struct MouseIllustration: View {
                 }.offset(y: -48)
                 if !compact {
                     Circle().fill(MouseTheme.accent).frame(width: 4, height: 4).offset(y: -13)
-                    Text(model == .mxMaster4 ? "mx" : "G").font(.system(size: 17, weight: .semibold))
+                    Text(model == .mxMaster4 ? "mx" : model == .superstrike ? "G" : "").font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(model == .mxMaster4 ? Color.white.opacity(0.65) : Color.black.opacity(0.55)).offset(y: 40)
                 }
             }
@@ -78,7 +78,7 @@ struct DetailTabButton: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 11) {
+            VStack(spacing: 8) {
                 Text(title).font(.system(size: 13, weight: selected ? .semibold : .medium))
                     .foregroundStyle(selected ? Color.primary : .secondary)
                 Capsule().fill(selected ? MouseTheme.accent : .clear).frame(height: 3)

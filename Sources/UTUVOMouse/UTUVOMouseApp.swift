@@ -50,7 +50,7 @@ struct UTUVOMouseApp: App {
                 .preferredColorScheme(LaunchOptions.appearance)
                 .onAppear { AppLifecycle.shared.model = model }
         }
-        .defaultSize(width: 1040, height: 760)
+        .defaultSize(width: 900, height: 620)
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
 
@@ -132,7 +132,7 @@ final class AppModel {
 
     /// The devices the picker shows: the two mice, never the bare receiver.
     var mice: [DeviceSnapshot] {
-        snapshots.filter { $0.identity.model == .mxMaster4 || $0.identity.model == .superstrike }
+        snapshots.filter { $0.identity.model != .receiver }
     }
 
     var selected: DeviceSnapshot? {
@@ -206,6 +206,15 @@ final class AppModel {
                 }
             }
             result.append(snapshot)
+        }
+        result.append(contentsOf: service.readOnlyMouseIdentities.map { DeviceSnapshot(identity: $0) })
+        result.sort {
+            if $0.identity.model.supportsConfiguration != $1.identity.model.supportsConfiguration {
+                return $0.identity.model.supportsConfiguration
+            }
+            let order = $0.identity.displayName(language: AppLocalization.localizer.language).localizedStandardCompare(
+                $1.identity.displayName(language: AppLocalization.localizer.language))
+            return order == .orderedSame ? $0.id < $1.id : order == .orderedAscending
         }
         // Endpoints that are not a mouse stay in the diagnostics.
         diagnostics = result.filter { $0.identity.model == .receiver }.flatMap { snapshot in
@@ -395,7 +404,7 @@ final class AppModel {
                 productID: descriptor.productID,
                 seed: descriptor.physicalKey
             ),
-            model: DeviceReader.detectModel(features: [:], productID: descriptor.productID),
+            model: MouseIdentification.model(vendorID: descriptor.vendorID, productID: descriptor.productID),
             vendorID: descriptor.vendorID,
             productID: descriptor.productID,
             transport: descriptor.transportKind,
@@ -757,7 +766,7 @@ struct ContentView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            sidebar.frame(width: 210)
+            sidebar.frame(width: 190)
             VStack(spacing: 0) {
                 HStack {
                     if model.isDemo { Text(AppLocalization.text("app.demo")).foregroundStyle(.orange) }
@@ -774,7 +783,7 @@ struct ContentView: View {
                         .accessibilityLabel(SettingsStrings.exit.settingsHelp)
                 }
                 .buttonStyle(.borderless)
-                .padding(.horizontal, 28).padding(.top, 17).padding(.bottom, 2)
+                .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 0)
                 detail
                 statusBar
             }
@@ -782,7 +791,7 @@ struct ContentView: View {
         }
         .tint(MouseTheme.accent)
         .groupBoxStyle(MouseGroupStyle())
-        .frame(minWidth: 820, minHeight: 640)
+        .frame(minWidth: 760, minHeight: 560)
         .task { model.start() }
     }
 
@@ -790,17 +799,17 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("UTUVO").font(.system(size: 11, weight: .semibold)).tracking(3).foregroundStyle(.secondary)
-                Text("Mouse").font(.system(size: 30, weight: .semibold)).tracking(-1)
-            }.padding(.horizontal, 23).padding(.top, 52).padding(.bottom, 38)
+                Text("Mouse").font(.system(size: 24, weight: .semibold)).tracking(-0.7)
+            }.padding(.horizontal, 18).padding(.top, 36).padding(.bottom, 22)
             Text(AppLocalization.text("app.devices")).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-                .padding(.horizontal, 23).padding(.bottom, 13)
+                .padding(.horizontal, 18).padding(.bottom, 8)
             ForEach(model.mice) { snapshot in
                 Button { model.selectedID = snapshot.id } label: {
                     HStack(spacing: 11) {
-                        MouseIllustration(model: snapshot.identity.model, compact: true).frame(width: 31, height: 45)
+                        MouseIllustration(model: snapshot.identity.model, compact: true).frame(width: 27, height: 38)
                         VStack(alignment: .leading, spacing: 5) {
-                            Text(snapshot.identity.model == .mxMaster4 ? "MX Master 4" : "SUPERSTRIKE")
-                                .font(.system(size: 12, weight: .semibold))
+                            Text(snapshot.identity.displayName(language: AppLocalization.localizer.language))
+                                .font(.system(size: 12, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                             Text(snapshot.identity.transport.displayTitle(language: AppLocalization.localizer.language))
                                 .font(.system(size: 10)).foregroundStyle(.secondary)
                         }
@@ -809,7 +818,7 @@ struct ContentView: View {
                             Image(systemName: "exclamationmark.circle").foregroundStyle(.orange)
                         }
                     }
-                    .padding(.horizontal, 11).padding(.vertical, 12)
+                    .padding(.horizontal, 10).padding(.vertical, 9)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(model.selected?.id == snapshot.id ? MouseTheme.surface : .clear, in: RoundedRectangle(cornerRadius: 13))
                     .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(.primary.opacity(model.selected?.id == snapshot.id ? 0.06 : 0), lineWidth: 1))
@@ -817,7 +826,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(model.selected?.id == snapshot.id ? [.isSelected] : [])
-                .padding(.horizontal, 12).padding(.bottom, 6)
+                .padding(.horizontal, 10).padding(.bottom, 4)
             }
             if model.mice.isEmpty {
                 Text(AppLocalization.text(model.isScanning ? "app.scanning" : "app.noDevices"))
@@ -844,7 +853,8 @@ struct ContentView: View {
         if let snapshot = model.selected {
             ScrollView {
                 DeviceDetailView(snapshot: snapshot)
-                    .padding(.horizontal, 28).padding(.top, 8).padding(.bottom, 24)
+                    .id(snapshot.id)
+                    .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 16)
             }
         } else {
             VStack(spacing: 8) {

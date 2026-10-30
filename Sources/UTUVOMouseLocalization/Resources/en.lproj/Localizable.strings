@@ -382,3 +382,9 @@
 "ring.action.spotlight" = "Spotlight";
 "ring.action.screenshot" = "Screenshot";
 "ring.action.missionControl" = "Mission Control";
+
+"device.readOnly" = "Read only";
+
+"device.unsupported.title" = "Settings not supported";
+"device.unsupported.detail" = "The name comes from macOS device information or the paired receiver. Controls for this model are not supported yet.";
+"device.identificationUnavailable" = "The receiver is connected, but the paired mouse model could not be verified. Wake the mouse and refresh.";

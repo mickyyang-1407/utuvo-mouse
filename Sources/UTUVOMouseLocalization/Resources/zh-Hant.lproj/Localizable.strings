@@ -382,3 +382,9 @@
 "ring.action.spotlight" = "Spotlight";
 "ring.action.screenshot" = "螢幕截圖";
 "ring.action.missionControl" = "指揮中心";
+
+"device.readOnly" = "僅辨識";
+
+"device.unsupported.title" = "尚未支援此型號的設定";
+"device.unsupported.detail" = "名稱來自 macOS 裝置資訊或接收器回報。目前僅顯示辨識結果，不提供此型號的控制項。";
+"device.identificationUnavailable" = "接收器已連線，但尚無法確認配對滑鼠的型號。喚醒滑鼠後可重新整理。";

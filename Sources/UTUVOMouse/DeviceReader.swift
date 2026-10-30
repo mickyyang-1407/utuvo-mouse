@@ -33,7 +33,7 @@ nonisolated enum DeviceReader {
                 productID: descriptor.productID,
                 seed: descriptor.physicalKey
             ),
-            model: .unknown,
+            model: MouseIdentification.model(vendorID: descriptor.vendorID, productID: descriptor.productID),
             vendorID: descriptor.vendorID,
             productID: descriptor.productID,
             transport: descriptor.transportKind,
@@ -52,7 +52,7 @@ nonisolated enum DeviceReader {
         let text = MouseLocalizer(language: language)
         var snapshot = DeviceSnapshot(identity: identity(for: transport))
         snapshot.connectionEpoch = transport.connectionToken
-        snapshot.identity.model = detectModel(features: [:], productID: transport.descriptor.productID)
+        snapshot.identity.model = MouseIdentification.model(vendorID: transport.descriptor.vendorID, productID: transport.descriptor.productID)
 
         var protocolVersion: String?
         do {
@@ -87,7 +87,18 @@ nonisolated enum DeviceReader {
             return snapshot
         }
 
-        snapshot.identity.model = detectModel(features: snapshot.features, productID: transport.descriptor.productID)
+        if transport.descriptor.productID == TargetProducts.receiver,
+           let nameIndex = snapshot.features[HIDPPFeatureID.deviceName],
+           let name = try? await client.readDeviceName(featureIndex: nameIndex) {
+            snapshot.identity.productName = name
+            snapshot.identity.model = MouseIdentification.model(
+                vendorID: snapshot.identity.vendorID, productID: snapshot.identity.productID, pairedDeviceName: name
+            )
+        }
+        guard snapshot.identity.model.supportsConfiguration else {
+            if snapshot.identity.model == .receiver { snapshot.issues.append(text.string("device.identificationUnavailable")) }
+            return snapshot
+        }
         // The state is only authoritative when every read of this device worked.
         var authoritative = true
 
@@ -184,22 +195,7 @@ nonisolated enum DeviceReader {
         return snapshot
     }
 
-    /// Picks the model from the features the device implements.
-    static func detectModel(features: [UInt16: UInt8], productID: Int) -> MouseModel {
-        if features[HIDPPFeatureID.onboardProfiles] != nil { return .superstrike }
-        if features[HIDPPFeatureID.analogButtons] != nil { return .superstrike }
-        if features[HIDPPFeatureID.adjustableDPI] != nil
-            || features[HIDPPFeatureID.smartShiftEnhanced] != nil
-            || features[HIDPPFeatureID.wheelControl] != nil {
-            return .mxMaster4
-        }
-        switch productID {
-        case TargetProducts.mxMaster4: return .mxMaster4
-        case TargetProducts.superstrikeDirect: return .superstrike
-        case TargetProducts.receiver: return .receiver
-        default: return .unknown
-        }
-    }
+
 }
 
 /// Synthetic data for the demo mode. It is labelled as demo everywhere it shows.

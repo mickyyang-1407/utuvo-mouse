@@ -10,6 +10,41 @@ public enum MouseModel: String, Sendable, CaseIterable {
     case unknown = "未知型號"
 }
 
+/// Product IDs verified for the configuration paths in this app.
+public enum MouseIdentification {
+    public static let logitechVendorID = 0x046D
+    public static let mxMaster4 = 0xB042
+    public static let superstrike = 0xC0A8
+    public static let lightspeedReceiver = 0xC54D
+
+    /// Shared features never establish a model. The receiver's own PID is not
+    /// the paired mouse's identity; a complete device-name reply is required.
+    public static func model(vendorID: Int, productID: Int, pairedDeviceName: String? = nil) -> MouseModel {
+        guard vendorID == logitechVendorID else { return .unknown }
+        switch productID {
+        case mxMaster4: return .mxMaster4
+        case superstrike: return .superstrike
+        case lightspeedReceiver:
+            guard let name = cleanName(pairedDeviceName) else { return .receiver }
+            let normalized = name.uppercased().replacingOccurrences(of: " ", with: "")
+            return normalized == "PROX2SUPERSTRIKE" ? .superstrike : .unknown
+        default: return .unknown
+        }
+    }
+
+    public static func cleanName(_ name: String?) -> String? {
+        guard let name else { return nil }
+        let value = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty, value.utf8.count <= 128,
+              !value.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { return nil }
+        return value
+    }
+}
+
+public extension MouseModel {
+    var supportsConfiguration: Bool { self == .mxMaster4 || self == .superstrike }
+}
+
 /// How a device is connected.
 public enum DeviceTransportKind: String, Sendable {
     case bluetooth = "Bluetooth"
@@ -68,6 +103,13 @@ public struct DeviceIdentity: Sendable, Equatable {
         self.transport = transport
         self.deviceIndex = deviceIndex
         self.productName = productName
+    }
+}
+
+public extension DeviceIdentity {
+    func displayName(language: MouseLanguage) -> String {
+        if model.supportsConfiguration { return model.displayTitle(language: language) }
+        return MouseIdentification.cleanName(productName) ?? model.displayTitle(language: language)
     }
 }
 

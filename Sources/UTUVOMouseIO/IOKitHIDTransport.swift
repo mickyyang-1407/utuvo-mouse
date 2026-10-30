@@ -64,11 +64,11 @@ public struct HIDInterfaceDescriptor: Hashable, Sendable {
 /// The product identifiers this app is allowed to open.
 public enum TargetProducts {
     /// MX Master 4 M over Bluetooth.
-    public static let mxMaster4 = 0xB042
+    public static let mxMaster4 = MouseIdentification.mxMaster4
     /// PRO X2 SUPERSTRIKE over a direct USB cable.
-    public static let superstrikeDirect = 0xC0A8
+    public static let superstrikeDirect = MouseIdentification.superstrike
     /// LIGHTSPEED receiver that can host the Superstrike.
-    public static let receiver = 0xC54D
+    public static let receiver = MouseIdentification.lightspeedReceiver
 
     public static let allowed: Set<Int> = [mxMaster4, superstrikeDirect, receiver]
 }
@@ -256,6 +256,8 @@ public final class LogitechHIDService: @unchecked Sendable {
     private let manager: IOHIDManager
     private let lock = NSLock()
     private var transports: [String: IOKitHIDTransport] = [:]
+    /// Unsupported Logitech mouse descriptors only. Never opened or probed.
+    private var inventory: [UInt64: HIDInterfaceDescriptor] = [:]
     private var changeHandler: (@Sendable ([IOKitHIDTransport]) -> Void)?
     private var errorHandler: (@Sendable (HIDInterfaceDescriptor, HIDAccessFailure) -> Void)?
     private var isRunning = false
@@ -280,6 +282,20 @@ public final class LogitechHIDService: @unchecked Sendable {
         lock.withLock { Array(transports.values) }
     }
 
+    public var readOnlyMouseIdentities: [DeviceIdentity] {
+        lock.withLock {
+            var identities: [String: DeviceIdentity] = [:]
+            for d in inventory.values {
+                let identity = DeviceIdentity(stableID: StableIdentifier.make(vendorID: d.vendorID, productID: d.productID,
+                    seed: d.physicalKey + (d.locationID == 0 && d.serialNumber.isEmpty ? "-reg-\(d.registryID)" : "")),
+                    model: .unknown, vendorID: d.vendorID, productID: d.productID,
+                    transport: d.transportKind, deviceIndex: 0xFF, productName: d.productName)
+                identities[identity.stableID] = identity
+            }
+            return Array(identities.values)
+        }
+    }
+
     public func start() {
         lock.withLock {
             guard !isRunning else { return }
@@ -296,6 +312,9 @@ public final class LogitechHIDService: @unchecked Sendable {
         // The matching uses the *primary* usage page: this macOS does not publish
         // a device level usage page, so a device level criterion matches nothing.
         let criteria: [[String: Any]] = [
+            // Passive inventory of other Logitech mouse collections. Matching
+            // reads registry metadata; handleMatch never opens these devices.
+            [kIOHIDVendorIDKey: Self.logitechVendorID, kIOHIDPrimaryUsagePageKey: 0x01, kIOHIDPrimaryUsageKey: 0x02],
             [kIOHIDVendorIDKey: Self.logitechVendorID, kIOHIDProductIDKey: TargetProducts.superstrikeDirect, kIOHIDPrimaryUsagePageKey: 0xFF00],
             [kIOHIDVendorIDKey: Self.logitechVendorID, kIOHIDProductIDKey: TargetProducts.superstrikeDirect, kIOHIDPrimaryUsagePageKey: 0xFF43],
             [kIOHIDVendorIDKey: Self.logitechVendorID, kIOHIDProductIDKey: TargetProducts.receiver, kIOHIDPrimaryUsagePageKey: 0xFF00],
@@ -328,13 +347,18 @@ public final class LogitechHIDService: @unchecked Sendable {
         for transport in lock.withLock({ Array(transports.values) }) {
             transport.close()
         }
-        lock.withLock { transports.removeAll() }
+        lock.withLock { transports.removeAll(); inventory.removeAll() }
     }
 
     private func handleMatch(_ device: IOHIDDevice) {
         let descriptor = HIDInterfaceDescriptor(device: device)
         guard descriptor.vendorID == Self.logitechVendorID else { return }
-        guard TargetProducts.allowed.contains(descriptor.productID) else { return }
+        guard TargetProducts.allowed.contains(descriptor.productID) else {
+            guard descriptor.isMouseCollection else { return }
+            lock.withLock { inventory[descriptor.registryID] = descriptor }
+            publishChange()
+            return
+        }
         // Only the vendor collection of the target devices, and the generic mouse
         // collection of the Bluetooth mouse.
         let isAccepted = descriptor.isVendorCollection
@@ -366,8 +390,17 @@ public final class LogitechHIDService: @unchecked Sendable {
 
     private func handleRemoval(_ device: IOHIDDevice) {
         let descriptor = HIDInterfaceDescriptor(device: device)
-        let removed = lock.withLock { transports.removeValue(forKey: descriptor.physicalKey) }
+        if !TargetProducts.allowed.contains(descriptor.productID) {
+            let removed = lock.withLock { inventory.removeValue(forKey: descriptor.registryID) }
+            if removed != nil { publishChange() }
+            return
+        }
+        let removed = lock.withLock { () -> IOKitHIDTransport? in
+            guard transports[descriptor.physicalKey]?.descriptor.registryID == descriptor.registryID else { return nil }
+            return transports.removeValue(forKey: descriptor.physicalKey)
+        }
         guard removed != nil else { return }
+        removed?.close()
         publishChange()
     }
 
