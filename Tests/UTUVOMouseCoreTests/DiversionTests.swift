@@ -130,7 +130,7 @@ struct DiversionLifecycleTests {
     }
 
     private func temporaryStore() -> (DiversionStateStore, URL) {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+        let root = MouseTestTemporaryRoot.url
             .appendingPathComponent("utuvo-diversion-tests-\(UUID().uuidString)")
         return (DiversionStateStore(root: root), root)
     }
@@ -321,7 +321,7 @@ struct DiversionDispatchTests {
         let transport = MockHIDPPTransport { request in device.reply(to: request) }
         let client = try HIDPPClient(transport: transport, deviceIndex: 0xFF, timeout: .milliseconds(400))
         let reprogram = try #require(await ReprogramControlsClient.resolve(for: client))
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+        let root = MouseTestTemporaryRoot.url
             .appendingPathComponent("utuvo-dispatch-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         let spy = SpyActionPerformer()
@@ -358,7 +358,7 @@ struct DiversionDispatchTests {
         let transport = MockHIDPPTransport { request in device.reply(to: request) }
         let client = try HIDPPClient(transport: transport, deviceIndex: 0xFF, timeout: .milliseconds(400))
         let reprogram = try #require(await ReprogramControlsClient.resolve(for: client))
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+        let root = MouseTestTemporaryRoot.url
             .appendingPathComponent("utuvo-dispatch-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         let spy = SpyActionPerformer()
@@ -389,7 +389,7 @@ struct DiversionDispatchTests {
         let transport = MockHIDPPTransport { request in device.reply(to: request) }
         let client = try HIDPPClient(transport: transport, deviceIndex: 0xFF, timeout: .milliseconds(400))
         let reprogram = try #require(await ReprogramControlsClient.resolve(for: client))
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+        let root = MouseTestTemporaryRoot.url
             .appendingPathComponent("utuvo-dispatch-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         let spy = SpyActionPerformer()
@@ -420,7 +420,7 @@ struct RingDiversionTests {
     @Test("physical down/release dispatch once, unrelated frames ignored, cancellation never executes")
     func pressReleaseAndCancel() async throws {
         let device = FakeReprog(); device.controls.append((0x01A0, 0x0531))
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ring-\(UUID())")
+        let root = MouseTestTemporaryRoot.url.appendingPathComponent("ring-\(UUID())")
         defer { try? FileManager.default.removeItem(at: root) }
         let store = DiversionStateStore(root: root)
         let transport = MockHIDPPTransport { device.reply(to: $0) }
@@ -445,7 +445,7 @@ struct RingDiversionTests {
     @Test("normal disable restores the thumb button and never touches rawXY or persistent/remap fields")
     func restore() async throws {
         let device = FakeReprog(); device.controls.append((0x01A0, 0x0531))
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ring-restore-\(UUID())")
+        let root = MouseTestTemporaryRoot.url.appendingPathComponent("ring-restore-\(UUID())")
         defer { try? FileManager.default.removeItem(at: root) }
         let transport = MockHIDPPTransport { device.reply(to: $0) }
         let client = try HIDPPClient(transport: transport, deviceIndex: 0xFF)

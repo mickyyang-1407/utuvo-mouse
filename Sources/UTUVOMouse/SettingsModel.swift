@@ -22,6 +22,7 @@ final class SettingsModel {
 
     /// The mapping preferences shared with the device window.
     let mappingPreferences: MXMappingPreferences
+    let modelSupport: ModelSupportController
     let languagePreferenceStore: MouseLanguagePreferenceStoring
     var selectedLanguage: MouseLanguage
     var languageChangePending = false
@@ -32,11 +33,13 @@ final class SettingsModel {
         exitCoordinator: AppExitCoordinator,
         isDemo: Bool,
         mappingPreferences: MXMappingPreferences,
+        modelSupport: ModelSupportController,
         languagePreferenceStore: MouseLanguagePreferenceStoring
     ) {
         self.isDemo = isDemo
         self.policy = RuntimePolicy(isDemo: isDemo)
         self.mappingPreferences = mappingPreferences
+        self.modelSupport = modelSupport
         self.languagePreferenceStore = languagePreferenceStore
         self.selectedLanguage = AppLocalization.selectedLanguage
         self.languageAtLaunch = AppLocalization.selectedLanguage

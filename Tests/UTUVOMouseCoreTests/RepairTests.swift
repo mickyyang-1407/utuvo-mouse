@@ -254,7 +254,7 @@ struct MXButtonProtocolTests {
         let transport = makeTransport()
         let client = try HIDPPClient(transport: transport, deviceIndex: 0xFF, timeout: .milliseconds(300))
         let reprogram = try #require(await ReprogramControlsClient.resolve(for: client))
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+        let root = MouseTestTemporaryRoot.url
             .appendingPathComponent("utuvo-diversion-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         let remapper = MXButtonRemapper(
@@ -275,7 +275,7 @@ struct MXButtonProtocolTests {
         let transport = makeTransport(reporting: 0b0000_0001)
         let client = try HIDPPClient(transport: transport, deviceIndex: 0xFF, timeout: .milliseconds(300))
         let reprogram = try #require(await ReprogramControlsClient.resolve(for: client))
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+        let root = MouseTestTemporaryRoot.url
             .appendingPathComponent("utuvo-diversion-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         let remapper = MXButtonRemapper(

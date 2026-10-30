@@ -6,6 +6,29 @@ A small, independent native macOS controller for Logitech MX Master 4 for Mac an
 
 **0.3.3 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
 
+## New-model support preview
+
+This preview branch adds local redacted developer tasks and an explicitly started
+Codex companion that can produce isolated, program-tested source candidates.
+MX Anywhere 3 Bluetooth has an opt-in **read-only capability inspector**; it has
+no configuration controls and has not been checked on physical hardware. A
+capability report can be handed to the local task queue with
+`--import-capabilities FILE [--support-directory DIRECTORY]`, or collected from
+the app's own **Collect capabilities** button; both keep the report, the program
+test, the physical behaviour and the release as separate, individually honest
+states. These preview features are **not included in the 0.3.3 download** above.
+The app itself does not run an AI or upload device data. See
+[developer setup and limits](docs/MODEL-SUPPORT.md)
+and [MX Anywhere 3 inspection](docs/MX-ANYWHERE-3-INSPECTION.md).
+For the first real device, give its owner's AI the
+[copyable collection handoff](docs/AI-FIRST-DEVICE.md).
+
+本預覽分支提供去識別本機任務、另行啟動的 Codex 開發 companion，以及 MX Anywhere 3
+Bluetooth 的明確同意唯讀檢查。能力報告可用 `--import-capabilities FILE [--support-directory DIRECTORY]`
+匯入本機任務佇列，或由 App 的「收集能力」按鈕取得；報告來源、程式測試、實機行為與
+發行狀態各自獨立，不會互相冒充。尚未提供 Anywhere 3 設定控制或實機驗證，也不包含在
+上方 0.3.3 下載版。App 本身不執行 AI、不上傳裝置資料；程式測試與實機驗證分別記錄。
+
 ## Essentials
 
 | Device | Connection | Controls |

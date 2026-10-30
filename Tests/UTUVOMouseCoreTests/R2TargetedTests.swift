@@ -169,7 +169,7 @@ struct R2DiversionOwnershipTests {
     }
 
     private func temporaryStore() -> (DiversionStateStore, URL) {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+        let root = MouseTestTemporaryRoot.url
             .appendingPathComponent("utuvo-r2-\(UUID().uuidString)")
         return (DiversionStateStore(root: root), root)
     }

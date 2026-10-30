@@ -242,7 +242,7 @@ struct MXMappingPreferencesTests {
     }
 
     private func makeStore() -> (FileMXMappingPreferenceStore, URL) {
-        let directory = FileManager.default.temporaryDirectory
+        let directory = MouseTestTemporaryRoot.url
             .appendingPathComponent("mx-mapping-tests-\(UUID().uuidString)", isDirectory: true)
         return (FileMXMappingPreferenceStore(fileURL: storeURL(in: directory)), directory)
     }

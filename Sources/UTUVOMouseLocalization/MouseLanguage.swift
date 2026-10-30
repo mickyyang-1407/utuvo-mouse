@@ -137,7 +137,10 @@ public struct MouseLocalizer {
 
     private var catalogBundle: Bundle {
         let identifier = language == .traditionalChinese ? "zh-Hant" : "en"
-        guard let url = bundle.url(forResource: identifier, withExtension: "lproj"),
+        // SwiftPM's native builder emits lowercase zh-hant.lproj. Keep the
+        // normal Xcode/Swift Build lookup first, then accept that packaged form.
+        guard let url = bundle.url(forResource: identifier, withExtension: "lproj")
+                ?? bundle.url(forResource: identifier.lowercased(), withExtension: "lproj"),
               let localized = Bundle(url: url) else { return bundle }
         return localized
     }

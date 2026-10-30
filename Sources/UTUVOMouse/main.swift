@@ -2,8 +2,42 @@ import Foundation
 import UTUVOMouseCore
 import UTUVOMouseIO
 import UTUVOMouseLocalization
+import UTUVOMouseSupport
 
 let arguments = Array(CommandLine.arguments.dropFirst())
+
+// Consume the file import intent before any normal app setup, before the
+// inspection command and before the broader --probe handling. Mixed modes and
+// malformed arguments exit here, without touching a device.
+do {
+    switch try CapabilityImportInvocation.parse(arguments) {
+    case .notRequested: break
+    case .help:
+        print(CapabilityImportCommand.help)
+        exit(0)
+    case .importCapabilities(let file, let directory):
+        exit(CapabilityImportCommand.run(file: file, supportDirectory: directory))
+    }
+} catch {
+    CapabilityImportCommand.reportFailure(error)
+    exit(2)
+}
+
+// Consume inspection intent before any normal app setup or broader --probe
+// handling. Missing consent, mixed modes and malformed arguments exit here.
+do {
+    switch try CapabilityInspectionInvocation.parse(arguments) {
+    case .notRequested: break
+    case .help:
+        print(CapabilityInspectionCommand.help)
+        exit(0)
+    case .inspect:
+        exit(await CapabilityInspectionCommand.run())
+    }
+} catch {
+    CapabilityInspectionCommand.reportFailure(error)
+    exit(2)
+}
 
 #if DEBUG
 // Isolated native design fixture. Production builds ignore these bundle keys.

@@ -34,6 +34,7 @@ struct UTUVOMouseApp: App {
             exitCoordinator: model.exitCoordinator,
             isDemo: model.isDemo,
             mappingPreferences: model.mappingPreferences,
+            modelSupport: model.modelSupport,
             languagePreferenceStore: AppLocalization.preferenceStore
         )
         // The updater runs the device cleanup before the installer takes over.
@@ -49,6 +50,9 @@ struct UTUVOMouseApp: App {
                 .environment(settings)
                 .preferredColorScheme(LaunchOptions.appearance)
                 .onAppear { AppLifecycle.shared.model = model }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                    model.modelSupport.refreshProgress()
+                }
         }
         .defaultSize(width: 900, height: 500)
         .windowStyle(.hiddenTitleBar)
@@ -57,6 +61,7 @@ struct UTUVOMouseApp: App {
         Settings {
             SettingsView()
                 .environment(settings)
+                .environment(model)
                 .preferredColorScheme(LaunchOptions.appearance)
         }
         .commands {
@@ -82,6 +87,7 @@ struct UTUVOMouseApp: App {
 @Observable
 final class AppModel {
     let actionRing = ActionRingController(isDemo: LaunchOptions.demoMode)
+    let modelSupport = ModelSupportController(isDemo: LaunchOptions.demoMode)
     var snapshots: [DeviceSnapshot] = []
     var selectedID: String?
     var isBusy = false
@@ -226,6 +232,7 @@ final class AppModel {
             snapshot.accessError.map { "\(snapshot.identity.productName): \($0)" }
         })
         snapshots = result
+        modelSupport.observe(result)
         // Only an authoritative read clears the warning of a device.
         for snapshot in result where snapshot.isStateAuthoritative {
             uncertain[snapshot.id] = nil
