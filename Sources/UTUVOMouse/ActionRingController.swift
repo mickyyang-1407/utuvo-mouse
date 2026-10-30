@@ -13,17 +13,20 @@ final class ActionRingController {
     private(set) var storageError: String?
     @ObservationIgnored private let defaults: UserDefaults?
     @ObservationIgnored private var panel: NSPanel?
-    @ObservationIgnored private var timer: Timer?
+    @ObservationIgnored private var timeoutTask: Task<Void, Never>?
+    @ObservationIgnored private var activationObserver: NSObjectProtocol?
+    @ObservationIgnored private var presentationID = UUID()
+    @ObservationIgnored private let pointerLocation: () -> NSPoint
     @ObservationIgnored private var localKeys: Any?
     @ObservationIgnored private var globalKeys: Any?
     @ObservationIgnored private var origin = NSPoint.zero
     @ObservationIgnored private var initialPointer = NSPoint.zero
     @ObservationIgnored private var suspended = false
     @ObservationIgnored private var targetPID: pid_t?
-    @ObservationIgnored private var shownAt: Date?
     private static let preferenceKey = "actionRing.configuration.v1"
 
-    init(isDemo: Bool) {
+    init(isDemo: Bool, pointerLocation: @escaping () -> NSPoint = { NSEvent.mouseLocation }) {
+        self.pointerLocation = pointerLocation
         defaults = isDemo ? nil : .standard
         if let data = defaults?.data(forKey: Self.preferenceKey) {
             do { configuration = try ActionRingConfiguration.decode(data) }
@@ -53,9 +56,8 @@ final class ActionRingController {
         cancel()
         isPreview = preview
         highlighted = nil
-        initialPointer = NSEvent.mouseLocation
+        initialPointer = pointerLocation()
         targetPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        shownAt = Date()
         let screen = NSScreen.screens.first { $0.frame.contains(initialPointer) } ?? NSScreen.main
         guard let frame = screen?.visibleFrame else { return }
         let half: CGFloat = 218
@@ -69,11 +71,23 @@ final class ActionRingController {
         window.level = .popUpMenu
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         window.hidesOnDeactivate = false
-        window.contentView = NSHostingView(rootView: RingHUD(controller: self))
+        window.acceptsMouseMovedEvents = true
+        let content = RingTrackingView(rootView: RingHUD(controller: self))
+        content.pointerMoved = { [weak self] point in self?.trackPointer(at: point) }
+        content.pointerExited = { [weak self] in self?.highlighted = nil }
+        window.contentView = content
         panel = window
         window.orderFrontRegardless()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0/60, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.trackPointer() }
+        let currentPresentation = presentationID
+        timeoutTask = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(15)) } catch { return }
+            guard let self, self.presentationID == currentPresentation else { return }
+            self.escape()
+        }
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.cancelIfTargetChanged() }
         }
         localKeys = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == 53 { self?.escape(); return nil }
@@ -84,17 +98,22 @@ final class ActionRingController {
         }
     }
 
-    private func trackPointer() {
+    private func trackPointer(at location: NSPoint? = nil) {
         guard panel != nil else { return }
-        if let shownAt, Date().timeIntervalSince(shownAt) > 15 { escape(); return }
-        if !isPreview, NSWorkspace.shared.frontmostApplication?.processIdentifier != targetPID { escape(); return }
-        let point = NSEvent.mouseLocation
+        let point = location ?? pointerLocation()
         guard hypot(point.x-initialPointer.x, point.y-initialPointer.y) >= 8 else { highlighted = nil; return }
-        highlighted = ActionRingGeometry.slot(x: point.x-origin.x, y: origin.y-point.y)
+        let selection = ActionRingGeometry.slot(x: point.x-origin.x, y: origin.y-point.y)
+        if highlighted != selection { highlighted = selection }
+    }
+
+    private func cancelIfTargetChanged() {
+        guard panel != nil, !isPreview else { return }
+        if NSWorkspace.shared.frontmostApplication?.processIdentifier != targetPID { escape() }
     }
 
     private func finish() {
         guard panel != nil else { return }
+        if !isPreview, NSWorkspace.shared.frontmostApplication?.processIdentifier != targetPID { escape(); return }
         trackPointer()
         guard panel != nil else { return }
         let action = highlighted.map { configuration.slots[$0] }
@@ -116,7 +135,10 @@ final class ActionRingController {
     func escape() { let physical = !isPreview; cancel(); suspended = physical }
 
     func cancel() {
-        timer?.invalidate(); timer = nil
+        presentationID = UUID()
+        timeoutTask?.cancel(); timeoutTask = nil
+        if let activationObserver { NSWorkspace.shared.notificationCenter.removeObserver(activationObserver) }
+        activationObserver = nil
         if let localKeys { NSEvent.removeMonitor(localKeys) }; localKeys = nil
         if let globalKeys { NSEvent.removeMonitor(globalKeys) }; globalKeys = nil
         panel?.orderOut(nil); panel = nil
@@ -145,6 +167,37 @@ final class ActionRingController {
               let up = CGEvent(keyboardEventSource: nil, virtualKey: key, keyDown: false) else { return }
         down.flags = flags; up.flags = flags
         down.post(tap: .cghidEventTap); up.post(tap: .cghidEventTap)
+    }
+}
+
+/// AppKit supplies movement only while the HUD is being used. No idle polling.
+final class RingTrackingView: NSHostingView<RingHUD> {
+    var pointerMoved: ((NSPoint) -> Void)?
+    var pointerExited: (() -> Void)?
+    private var pointerArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let pointerArea { removeTrackingArea(pointerArea) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect, .enabledDuringMouseDrag],
+                                  owner: self, userInfo: nil)
+        addTrackingArea(area)
+        pointerArea = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        if let window { pointerMoved?(window.convertPoint(toScreen: event.locationInWindow)) }
+        super.mouseMoved(with: event)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        if let window { pointerMoved?(window.convertPoint(toScreen: event.locationInWindow)) }
+        super.mouseDragged(with: event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        pointerExited?()
+        super.mouseExited(with: event)
     }
 }
 

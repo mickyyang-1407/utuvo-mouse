@@ -2,9 +2,9 @@
 
 A small, independent native macOS controller for Logitech MX Master 4 for Mac and PRO X2 SUPERSTRIKE. English and Traditional Chinese. MIT licensed. No accounts, cloud profiles, RGB editor, macros or preset marketplace.
 
-[Download 0.3.0 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.3.0) — Developer ID signed, Apple notarized, Gatekeeper accepted.
+[Download 0.3.1 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.3.1) — Developer ID signed, Apple notarized, Gatekeeper accepted.
 
-**0.3.0 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
+**0.3.1 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
 
 ## Essentials
 
@@ -58,6 +58,10 @@ Development builds use ad-hoc signing and need no release key. Permissions for a
 
 Sensor DPI uses its advertised per-axis grid, including the 20-DPI band at 2000–5000. Off-grid 3250 is rejected before any profile write; the UI steps only through values both axes support. Sleep/disconnect errors remain visible. Unsupported firmware, other models, crash/sleep recovery and new physical press-output counts remain outside the current evidence.
 
+## Resource use
+
+0.3.1 replaces the Action Ring’s 60 Hz pointer polling with native AppKit tracking events and a single timeout. Identical isolated native HUD tests measured idle CPU at 0.370% → 0.00574% of one core and interrupt wakeups at 60.47 → 0.50 per second. Sixty open/cancel cycles left no retained panels in either version; this is a polling optimization, not a claimed memory-leak fix. See [measurement conditions and whole-app results](docs/PERFORMANCE.md).
+
 ## Open-source foundations
 
 [Nanostrike](https://github.com/jwake/nanostrike) supplies the adapted HITS/DPI codecs and verified format-8 layout. [Mouser](https://github.com/TomBadash/Mouser) supplies the MX/macOS shortcut reference. Both use MIT; copyright notices are retained. [Protocol sources](docs/PROTOCOL-SOURCES.md) record exact source blobs and the corrected RT/DPI interpretation.
@@ -77,6 +81,8 @@ MX 支援電量、DPI、SmartShift、滾輪、中鍵／前後側鍵複製貼上�
 使用時先退出同時控制滑鼠的原廠裝置代理；本 App 不修改韌體、不接管別人的按鍵改道，也不代替你授予系統權限。更新簽章與損毀檔拒絕已通過；App 已從真正的 HTTPS 來源完成 0.2.1 (5) → 0.2.2 (6) 下載、安裝與重啟，確認簽章、繁中設定與 MX 實際存取保留，不需重新授權。登入註冊已驗證，下次真實登入仍待確認。
 
 新版以裝置示意圖、分頁與一致的控制層次重新設計，保留英文／繁中與深淺色。在「MX Master 4 → Action Ring」點選八個位置來指定動作；按住拇指鍵、移向動作後放開，中央放開或 Esc 可取消。配置儲存在本機，不修改 Options+ 設定檔。原廠代理須先釋放拇指鍵，且 UTUVO Mouse 須持續執行；下次啟動是否恢復按鍵，仍由設定中的明確選項控制。實際藍牙裝置已通過啟用讀回／停用還原；隔離模擬按鍵測試不冒充實體拇指按壓驗收。
+
+0.3.1 將 Action Ring 每秒 60 次的游標輪詢改成 AppKit 原生滑鼠事件。相同隔離原生測試的靜止 CPU 從單核心 0.370% 降至 0.00574%，每秒中斷喚醒從 60.47 降至 0.50；反覆開關 60 次，兩版都沒有殘留視窗。完整 App 與隔離浮層的耗用分開記錄，詳見[資源量測](docs/PERFORMANCE.md)。
 
 ## License
 
