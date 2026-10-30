@@ -47,7 +47,7 @@ Development builds use ad-hoc signing and need no release key. Permissions for a
 - Earlier USB physical trials confirmed transport, normal left/right clicks, differing haptic strength and a free-form onboard button trial. The corrected build has no fresh USB physical trial; the shared corrected protocol was checked through LIGHTSPEED. No claims about latency, debounce, exact press counts or long-term reliability.
 - Production-generated C/V CGEvents passed native AppKit menu dispatch into real NSTextView Copy/Paste. Clipboard restored, no global input posted. This is separate from a physical MX button trial.
 - Developer ID update continuity already retained actual MX battery/DPI access without a new permission grant. English/light and Traditional Chinese/dark operator previews covered device panes and Settings. Login registration on/off was checked against macOS; a real next-login launch is unverified.
-- Official Sparkle accepted the real signed archive and rejected a one-byte-corrupted copy. Actual HTTPS update installation is being checked during initial release bootstrap; configuration or a signature alone is not an installation result.
+- Official Sparkle accepted the real signed archive and rejected a one-byte-corrupted copy. Actual HTTPS/Sparkle update 0.2.1 (5) → 0.2.2 (6) downloaded, installed and relaunched successfully. Installed executable matches the published notarized archive; strict signatures/designated requirement, Traditional Chinese preferences and actual MX access were retained without a new grant.
 
 Sleep/disconnect errors remain visible. Unsupported firmware, other models, crash/sleep recovery and a fresh USB trial are outside the current evidence.
 
@@ -65,7 +65,7 @@ MX 支援電量、DPI、SmartShift、滾輪，以及中鍵／前後側鍵複製�
 
 本次無線實機已確認真正生效的 3200 DPI、HITS 的儲存與開關位元，並在測後完整還原 5／關閉／3，保留板載模式與 3200 DPI。新版沒有重新進行 USB 實體試按；先前 USB 測試與本次共用協定的無線讀寫結果分別記錄，不宣稱精確點擊數、延遲或長期穩定性。已通過 128 項隔離測試、獨立程式審查與原生文字框複製貼上整合測試。
 
-使用時先退出同時控制滑鼠的原廠裝置代理；本 App 不修改韌體、不接管別人的按鍵改道，也不代替你授予系統權限。更新簽章與損毀檔拒絕已通過，實際網路更新安裝驗證另列；登入註冊已驗證，下次真實登入仍待確認。
+使用時先退出同時控制滑鼠的原廠裝置代理；本 App 不修改韌體、不接管別人的按鍵改道，也不代替你授予系統權限。更新簽章與損毀檔拒絕已通過；App 已從真正的 HTTPS 來源完成 0.2.1 (5) → 0.2.2 (6) 下載、安裝與重啟，確認簽章、繁中設定與 MX 實際存取保留，不需重新授權。登入註冊已驗證，下次真實登入仍待確認。
 
 ## License
 
