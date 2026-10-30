@@ -388,3 +388,20 @@
 "device.unsupported.title" = "Settings not supported";
 "device.unsupported.detail" = "The name comes from macOS device information or the paired receiver. Controls for this model are not supported yet.";
 "device.identificationUnavailable" = "The receiver is connected, but the paired mouse model could not be verified. Wake the mouse and refresh.";
+
+/* Local model support workflow */
+"support.title" = "New model support";
+"support.queueToggle" = "Prepare a local task for new mouse models";
+"support.privacy" = "Local model IDs and feature IDs only. No serial number, address, personal device name or mouse settings. Nothing is uploaded by the app.";
+"support.explanation" = "This model stays read-only. A separately configured developer AI can create and test a candidate; physical verification and a signed release are still required.";
+"support.openTasks" = "Open developer tasks";
+"support.refresh" = "Refresh status";
+"support.disabled" = "Local task preparation is off";
+"support.unavailable" = "Task could not be prepared";
+"support.storageError" = "Could not read or save the local task. Check the task folder; no hardware setting has changed.";
+"support.phase.queued" = "Task prepared · waiting for developer AI";
+"support.phase.preparing" = "Preparing an isolated candidate";
+"support.phase.developing" = "Developer AI is working on a candidate";
+"support.phase.testing" = "Running program tests";
+"support.phase.needsHardware" = "Program tests passed · physical verification pending";
+"support.phase.failed" = "Development stopped · check the local result";

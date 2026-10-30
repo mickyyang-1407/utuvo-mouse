@@ -388,3 +388,20 @@
 "device.unsupported.title" = "尚未支援此型號的設定";
 "device.unsupported.detail" = "名稱來自 macOS 裝置資訊或接收器回報。目前僅顯示辨識結果，不提供此型號的控制項。";
 "device.identificationUnavailable" = "接收器已連線，但尚無法確認配對滑鼠的型號。喚醒滑鼠後可重新整理。";
+
+/* Local model support workflow */
+"support.title" = "新型號支援";
+"support.queueToggle" = "為新型號自動準備本機開發任務";
+"support.privacy" = "只保留本機型號與功能代碼，不含序號、位址、個人裝置名稱或滑鼠設定。App 不會上傳資料。";
+"support.explanation" = "這個型號維持唯讀。另行設定的開發 AI 可建立候選版並執行程式測試；仍須完成實機驗證及簽章發行。";
+"support.openTasks" = "打開開發任務";
+"support.refresh" = "更新狀態";
+"support.disabled" = "已關閉本機任務建立";
+"support.unavailable" = "尚未建立任務";
+"support.storageError" = "無法讀取或儲存本機任務，請檢查任務資料夾；滑鼠設定未變更。";
+"support.phase.queued" = "任務已準備，等待開發 AI";
+"support.phase.preparing" = "正在準備隔離候選來源";
+"support.phase.developing" = "開發 AI 正在製作候選版";
+"support.phase.testing" = "正在執行程式測試";
+"support.phase.needsHardware" = "程式測試通過，待實機驗證";
+"support.phase.failed" = "開發已停止，請查看本機結果";

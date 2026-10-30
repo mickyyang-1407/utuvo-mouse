@@ -47,7 +47,7 @@ struct DeviceDetailView: View {
                     }
                 }
             default:
-                UnavailableSection(title: AppLocalization.text("device.unsupported.title"), detail: AppLocalization.text("device.unsupported.detail"))
+                ModelSupportSection(snapshot: snapshot)
             }
             DiagnosticsView(snapshot: snapshot).padding(.top, 4)
         }

@@ -5,6 +5,22 @@ import UTUVOMouseLocalization
 
 let arguments = Array(CommandLine.arguments.dropFirst())
 
+// Consume inspection intent before any normal app setup or broader --probe
+// handling. Missing consent, mixed modes and malformed arguments exit here.
+do {
+    switch try CapabilityInspectionInvocation.parse(arguments) {
+    case .notRequested: break
+    case .help:
+        print(CapabilityInspectionCommand.help)
+        exit(0)
+    case .inspect:
+        exit(await CapabilityInspectionCommand.run())
+    }
+} catch {
+    CapabilityInspectionCommand.reportFailure(error)
+    exit(2)
+}
+
 #if DEBUG
 // Isolated native design fixture. Production builds ignore these bundle keys.
 if Bundle.main.object(forInfoDictionaryKey: "UTUVOMouseDemoFixture") as? Bool == true {

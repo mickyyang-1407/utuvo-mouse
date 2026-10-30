@@ -252,7 +252,7 @@ struct SuperstrikeWriteTests {
     }
 
     private func temporaryStore() -> (FileBackupStore, URL) {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+        let root = MouseTestTemporaryRoot.url
             .appendingPathComponent("utuvo-mouse-tests-\(UUID().uuidString)")
         return (FileBackupStore(root: root), root)
     }

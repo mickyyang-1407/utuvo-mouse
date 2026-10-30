@@ -7,12 +7,14 @@ import UTUVOMouseLocalization
 /// The settings window: the login item and the updater.
 struct SettingsView: View {
     @Environment(SettingsModel.self) private var settings
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         Form {
             languageSection
             launchSection
             mappingRestoreSection
+            modelSupportSection
             updateSection
         }
         .formStyle(.grouped)
@@ -21,6 +23,18 @@ struct SettingsView: View {
         .background(MouseTheme.canvas)
         .frame(width: 560, height: 560)
         .task { await settings.load() }
+    }
+
+    private var modelSupportSection: some View {
+        Section(AppLocalization.text("support.title")) {
+            Toggle(AppLocalization.text("support.queueToggle"), isOn: Binding(
+                get: { settings.modelSupport.enabled },
+                set: { settings.modelSupport.setEnabled($0, snapshots: model.snapshots) }
+            ))
+            .disabled(settings.isDemo)
+            Text(AppLocalization.text("support.privacy"))
+                .font(.caption).foregroundStyle(.secondary)
+        }
     }
 
     private var languageSection: some View {
