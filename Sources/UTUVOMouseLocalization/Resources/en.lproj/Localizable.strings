@@ -349,3 +349,5 @@
 "error.features.hitsVerify" = "HITS readback differs from the requested settings. Refresh before continuing.";
 "error.hidpp.receiverUnavailable" = "The receiver cannot reach the mouse. It may be asleep, switched off or disconnected.";
 "error.profile.dpiVerify" = "The sensor DPI does not match the selected profile stage. Refresh to confirm the current state.";
+"error.profile.dpiGridUnavailable" = "The sensor DPI grid could not be read. DPI editing is disabled.";
+"error.profile.dpiUnsupported" = "The sensor does not support DPI %@ / %@. Choose a supported value.";

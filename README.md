@@ -2,9 +2,9 @@
 
 A small, independent native macOS controller for Logitech MX Master 4 for Mac and PRO X2 SUPERSTRIKE. English and Traditional Chinese. MIT licensed. No accounts, cloud profiles, RGB editor, macros or preset marketplace.
 
-[Download 0.2.2 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.2.2) — Developer ID signed, Apple notarized, Gatekeeper accepted.
+[Download 0.2.3 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.2.3) — Developer ID signed, Apple notarized, Gatekeeper accepted.
 
-**0.2.2 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
+**0.2.3 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
 
 ## Essentials
 
@@ -42,14 +42,14 @@ Development builds use ad-hoc signing and need no release key. Permissions for a
 
 ## Validation
 
-- 128 isolated tests in 21 suites; independent Gemini review and targeted repair review passed.
+- 135 isolated tests in 22 suites; independent Gemini review and targeted repair review passed.
 - Corrected LIGHTSPEED hardware: actual selected stage and sensor DPI both verified 800 → 3200; only the intended stage bytes/CRC changed. HITS left 6/RT enabled level 3/haptics 4 and right 4/RT enabled level 1/haptics 2 were saved and checked against both NVM and live readback, then the complete daily profile was restored. Final: onboard/profile 1, sensor 3200×3200, both HITS 5/RT off/retained sensitivity 2/haptics 3, auxiliary button records unchanged.
-- Earlier USB physical trials confirmed transport, normal left/right clicks, differing haptic strength and a free-form onboard button trial. The corrected build has no fresh USB physical trial; the shared corrected protocol was checked through LIGHTSPEED. No claims about latency, debounce, exact press counts or long-term reliability.
+- Earlier USB physical trials confirmed transport, normal left/right clicks, differing haptic strength and a free-form onboard button trial. The corrected USB configuration path now also passed a compound write/readback/restore: sensor 3300×3300, both HITS records, stored report rate 2000 Hz and disabled auxiliary mappings; complete daily profile/control/native auxiliary mappings restored to 3200×3200, HITS 5/RT off/haptics 3 and stored rate 1000 Hz. No new physical press-output counts or actual polling-frequency measurement. No claims about latency, debounce, exact press counts or long-term reliability.
 - Production-generated C/V CGEvents passed native AppKit menu dispatch into real NSTextView Copy/Paste. Clipboard restored, no global input posted. This is separate from a physical MX button trial.
 - Developer ID update continuity already retained actual MX battery/DPI access without a new permission grant. English/light and Traditional Chinese/dark operator previews covered device panes and Settings. Login registration on/off was checked against macOS; a real next-login launch is unverified.
 - Official Sparkle accepted the real signed archive and rejected a one-byte-corrupted copy. Actual HTTPS/Sparkle update 0.2.1 (5) → 0.2.2 (6) downloaded, installed and relaunched successfully. Installed executable matches the published notarized archive; strict signatures/designated requirement, Traditional Chinese preferences and actual MX access were retained without a new grant.
 
-Sleep/disconnect errors remain visible. Unsupported firmware, other models, crash/sleep recovery and a fresh USB trial are outside the current evidence.
+Sensor DPI uses its advertised per-axis grid, including the 20-DPI band at 2000–5000. Off-grid 3250 is rejected before any profile write; the UI steps only through values both axes support. Sleep/disconnect errors remain visible. Unsupported firmware, other models, crash/sleep recovery and new physical press-output counts remain outside the current evidence.
 
 ## Open-source foundations
 
@@ -63,7 +63,7 @@ Interface direction: [Native – macOS Settings Screens by Daniils](https://drib
 
 MX 支援電量、DPI、SmartShift、滾輪，以及中鍵／前後側鍵複製貼上；需要 App 持續執行與輔助使用權限。SUPERSTRIKE 支援 USB／LIGHTSPEED、板載 DPI、回報率、輔助按鍵與左右 HITS。登入啟動、MX 自動還原、自動更新可分別選擇。
 
-本次無線實機已確認真正生效的 3200 DPI、HITS 的儲存與開關位元，並在測後完整還原 5／關閉／3，保留板載模式與 3200 DPI。新版沒有重新進行 USB 實體試按；先前 USB 測試與本次共用協定的無線讀寫結果分別記錄，不宣稱精確點擊數、延遲或長期穩定性。已通過 128 項隔離測試、獨立程式審查與原生文字框複製貼上整合測試。
+本次無線實機已確認真正生效的 3200 DPI、HITS 的儲存與開關位元，並在測後完整還原 5／關閉／3，保留板載模式與 3200 DPI。新版 USB 已通過 DPI、HITS、回報率資料及側鍵設定的寫入／讀回／完整還原，並驗證不合法 DPI 在寫入前拒絕；沒有要求使用者重新試按。先前 USB 實體試按與本次設定路徑讀寫結果分別記錄，不宣稱精確點擊數、延遲或長期穩定性。已通過 135 項隔離測試、獨立程式審查與原生文字框複製貼上整合測試。
 
 使用時先退出同時控制滑鼠的原廠裝置代理；本 App 不修改韌體、不接管別人的按鍵改道，也不代替你授予系統權限。更新簽章與損毀檔拒絕已通過；App 已從真正的 HTTPS 來源完成 0.2.1 (5) → 0.2.2 (6) 下載、安裝與重啟，確認簽章、繁中設定與 MX 實際存取保留，不需重新授權。登入註冊已驗證，下次真實登入仍待確認。
 

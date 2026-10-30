@@ -417,6 +417,31 @@ extension HIDPPClient {
         _ = try await request(featureIndex: feature.index, function: 2, payload: [flags])
     }
 
+    /// The sensor's accepted values, not an assumed constant DPI step.
+    /// Range words can cross the 13-byte page boundary; join before decoding.
+    public func readDPIGrid(axis: UInt8) async throws -> DPIGrid {
+        guard axis < 2, let feature = try await resolveFeature(0x2202) else {
+            throw HIDPPError.malformedReport("extended DPI grid unavailable")
+        }
+        var stream: [UInt8] = []
+        var terminated = false
+        for page: UInt8 in 0..<8 {
+            let data = try await request(featureIndex: feature.index, function: 2, payload: [0, axis, page])
+            guard data.count > 3, data[0] == 0, data[1] == axis, data[2] == page else {
+                throw HIDPPError.malformedReport("DPI range page header mismatch")
+            }
+            stream.append(contentsOf: data[3...])
+            terminated = stride(from: 0, to: stream.count - 1, by: 2).contains { stream[$0] == 0 && stream[$0+1] == 0 }
+            if terminated { break }
+        }
+        let grid = DPIGrid(decodingRangeStream: stream)
+        guard terminated, !grid.ranges.isEmpty,
+              grid.ranges.allSatisfy({ $0.lowerBound >= 100 && $0.upperBound <= 44000 && $0.upperBound > $0.lowerBound && $0.step > 0 }) else {
+            throw HIDPPError.malformedReport("incomplete or invalid DPI grid")
+        }
+        return grid
+    }
+
     /// 0x2202 fn5: current X, default X, current Y, default Y (big endian).
     /// Cross-checked with Nanostrike's independently verified asymmetric values.
     public func readSensorDPI() async throws -> (x: Int, y: Int) {

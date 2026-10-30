@@ -132,6 +132,15 @@ nonisolated enum DeviceReader {
                 }
             }
         }
+        if snapshot.identity.model == .superstrike {
+            do {
+                let x = try await client.readDPIGrid(axis: 0)
+                let y = try await client.readDPIGrid(axis: 1)
+                snapshot.supportedProfileDPI = x.values.filter { value in y.contains(UInt16(value)) }
+            } catch {
+                snapshot.issues.append(text.string("error.profile.dpiGridUnavailable"))
+            }
+        }
         if snapshot.features[HIDPPFeatureID.onboardProfiles] != nil,
            let onboard = try? await OnboardProfilesClient.resolve(for: client) {
             if let info = try? await onboard.readInfo() {

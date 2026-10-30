@@ -14,3 +14,7 @@ HITS sensitivity is 1–5 in bits 7–2; bit 0 independently enables Rapid Trigg
 The DPI table starts at 0x04: five 5-byte records (little-endian X, Y, lift-off). Default index is byte 2; live index is 0x8100 fn0B. Bytes 9–12 describe stage 1, not a universal active DPI. Sensor fn5 reports current-X/default-X/current-Y/default-Y, big-endian. A DPI apply verifies both the full stored profile and the sensor values.
 
 Feature indexes are discovered. Profile format, counts, CRC and current state are guarded before writes. A protocol ACK is not physical proof. No firmware or manufacturer app is distributed.
+
+## Sensor DPI grid
+
+Nanostrike `Model/DPIGrid.swift` blob d0b87a90fc3dbb8b5e31147bee0965805946e0e8 (MIT) supplies the range codec. 0x2202 fn2 is paginated by sensor/axis/page. Join 13-byte chunks before parsing big-endian words; words and the zero terminator cross pages. Real USB data advertises nine bands from 100 to 44000, with 20-unit steps at 2000–5000. Sensor-rounded 3250→3260 triggered this correction. Both axes are read; unsupported values are refused before profile writes and the UI uses their intersection.

@@ -335,6 +335,17 @@ public struct SuperstrikeService: Sendable {
             return .failedReason(.localized(key: "error.superstrike.invalidCurrentCRC", arguments: []))
         }
 
+        if changes.dpiX != nil || changes.dpiY != nil {
+            do {
+                let x = changes.dpiX ?? current.dpiX
+                let y = changes.dpiY ?? current.dpiY
+                let gx = try await client.readDPIGrid(axis: 0)
+                let gy = try await client.readDPIGrid(axis: 1)
+                guard let ux = UInt16(exactly: x), let uy = UInt16(exactly: y), gx.contains(ux), gy.contains(uy) else {
+                    return .failedReason(.localized(key: "error.profile.dpiUnsupported", arguments: [String(x), String(y)]))
+                }
+            } catch { return .failedReason(.capture(error)) }
+        }
         let patched: ProfileSector
         do {
             var base = current

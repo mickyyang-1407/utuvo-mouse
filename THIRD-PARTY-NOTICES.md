@@ -19,3 +19,5 @@ HITS codec, DPI stage codec and format-8 profile layout adapted from [jwake/nano
 
 ## Mouser
 macOS Command-C / Command-V event handling cross-checked against [TomBadash/Mouser](https://github.com/TomBadash/Mouser), core/key_simulator.py blob 102dee0dc47b2e912c84f860aa1169d44edc85dd, Copyright (c) 2026 Tom Badash, MIT. Full notice: LICENSES/Mouser-MIT.txt.
+
+DPIGrid.swift additionally adapted from Nanostrike blob d0b87a90fc3dbb8b5e31147bee0965805946e0e8 (MIT, same retained notice).

@@ -93,6 +93,8 @@ public struct DeviceSnapshot: Sendable, Equatable, Identifiable {
     public var smartShift: SmartShiftState?
     public var wheel: WheelState?
     public var hitsCapabilities: HitsCapabilities?
+    /// Intersection of both sensor axes, for symmetric DPI controls.
+    public var supportedProfileDPI: [Int] = []
     public var hitsButtons: [HitsButtonConfig] = []
     /// The running onboard profile (Superstrike).
     public var profile: ProfileSector?

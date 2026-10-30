@@ -25,7 +25,7 @@
 "language.quitToApply" = "結束並套用語言";
 "language.quitRequested" = "請結束並重新開啟 UTUVO Mouse，以套用所選語言。";
 "language.selectionFailed" = "無法儲存語言偏好設定。";
-"settings.login" = "啟動時登入";
+"settings.login" = "登入時啟動";
 "settings.login.toggle" = "登入時自動啟動 UTUVO Mouse";
 "settings.login.help" = "使用者登入 macOS 時會啟動本 App，不會重播裝置寫入。";
 "settings.login.disabled" = "示範模式不會註冊登入項目。";
@@ -349,3 +349,5 @@
 "error.features.hitsVerify" = "HITS 讀回結果與要求的設定不同，請重新整理後確認。";
 "error.hidpp.receiverUnavailable" = "接收器目前連不到滑鼠；裝置可能正在休眠、已關閉或已斷線。";
 "error.profile.dpiVerify" = "感應器 DPI 與目前選用的板載檔位不同，請重新整理確認實際狀態。";
+"error.profile.dpiGridUnavailable" = "無法讀取感應器 DPI 刻度，已停用 DPI 調整。";
+"error.profile.dpiUnsupported" = "感應器不支援 DPI %@ / %@，請選擇支援的數值。";

@@ -524,11 +524,12 @@ struct ProfileControlSection: View {
                     LabeledContent(AppLocalization.text("device.profile.dpi"), value: "\(profile.dpiX) / \(profile.dpiY)")
                     LabeledContent(AppLocalization.text("device.profile.reportRate"), value: "\(profile.reportRateHz) Hz")
 
-                    Stepper(AppLocalization.text("device.profile.dpiStepper", dpi ?? profile.dpiX), value: Binding(
-                        get: { dpi ?? profile.dpiX },
-                        set: { dpi = $0 }
-                    ), in: 100...ProfileLayout.maximumDPI, step: 50)
-                        .disabled(model.isBusy || model.isDemo)
+                    Stepper(AppLocalization.text("device.profile.dpiStepper", dpi ?? profile.dpiX), onIncrement: {
+                        dpi = snapshot.supportedProfileDPI.first { $0 > (dpi ?? profile.dpiX) } ?? dpi
+                    }, onDecrement: {
+                        dpi = snapshot.supportedProfileDPI.last { $0 < (dpi ?? profile.dpiX) } ?? dpi
+                    })
+                    .disabled(model.isBusy || model.isDemo || snapshot.supportedProfileDPI.isEmpty)
                     Picker(AppLocalization.text("device.profile.ratePicker"), selection: $rateHz) {
                         Text(AppLocalization.text("device.profile.noChange")).tag(Int?.none)
                         ForEach(ProfileLayout.reportRates, id: \.self) { hz in

@@ -101,6 +101,8 @@ private final class FakeSuperstrike: @unchecked Sendable {
     var sector: [UInt8]
     var currentSector: UInt16 = 1
     var writeCount = 0
+    var beginCount = 0
+    var badGridHeader = false
     var liveHITSOverride: [[UInt8]]?
     var committed: [UInt8] = []
     private var pending: [UInt8] = []
@@ -147,6 +149,10 @@ private final class FakeSuperstrike: @unchecked Sendable {
                     return nil
                 }
             case 0x09:
+                if function == 2 {
+                    let axis = badGridHeader ? payload[1] ^ 1 : payload[1]
+                    return frame([0,axis,payload[2],0,100,0xE0,20,0xAB,0xE0,0,0])
+                }
                 let offset = 4 + Int(sector[2]) * 5
                 return frame([0, sector[offset+1], sector[offset], sector[offset+1], sector[offset], sector[offset+3], sector[offset+2], sector[offset+3], sector[offset+2], sector[offset+4]])
             case 0x0A:  // OnboardProfiles
@@ -174,6 +180,7 @@ private final class FakeSuperstrike: @unchecked Sendable {
                     guard offset + 16 <= sector.count else { return nil }
                     return frame(Array(sector[offset..<(offset + 16)]))
                 case 0x06:  // begin
+                    beginCount += 1
                     pendingLength = (Int(payload[4]) << 8) | Int(payload[5])
                     pending = []
                     return frame([])
@@ -285,6 +292,45 @@ struct SuperstrikeWriteTests {
         #expect(Array(device.sector[38..<44]) == [27,14,17,18,5,11])
         let changed = zip(original.bytes, device.sector).enumerated().filter { $0.element.0 != $0.element.1 }.map(\.offset)
         #expect(Set(changed).isSubset(of: [38,39,40,41,42,43,253,254]))
+    }
+
+    @Test("off-grid DPI is rejected before a flash begin or commit")
+    func offGridNoWrite() async throws {
+        let original = makeSector()
+        let device = FakeSuperstrike(sector: original.bytes)
+        let (store, root) = temporaryStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (service, _) = try makeService(device: device, store: store)
+        let result = try await applyDPI(service, 3250, 3250)
+        guard case .failedReason(.localized(let key, _)) = result else {
+            Issue.record("unsupported DPI must fail before writing: \(result)"); return
+        }
+        #expect(key == "error.profile.dpiUnsupported")
+        #expect(device.beginCount == 0 && device.writeCount == 0)
+        #expect(device.sector == original.bytes)
+    }
+
+    @Test("valid DPI on the advertised grid is written and verified")
+    func onGridDPI() async throws {
+        let device = FakeSuperstrike(sector: makeSector().bytes)
+        let (store, root) = temporaryStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (service, _) = try makeService(device: device, store: store)
+        let result = try await applyDPI(service, 3300, 3300)
+        #expect(result.isApplied)
+        #expect(device.beginCount == 1 && device.writeCount == 1)
+    }
+
+    @Test("malformed grid echo refuses the write even for otherwise valid DPI")
+    func badGridNoWrite() async throws {
+        let device = FakeSuperstrike(sector: makeSector().bytes)
+        device.badGridHeader = true
+        let (store, root) = temporaryStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (service, _) = try makeService(device: device, store: store)
+        let result = try await applyDPI(service, 3300, 3300)
+        #expect(!result.isApplied)
+        #expect(device.beginCount == 0 && device.writeCount == 0)
     }
 
     @Test("host mode stops the write before any sector is touched")
