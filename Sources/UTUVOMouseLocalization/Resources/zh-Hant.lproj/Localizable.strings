@@ -388,3 +388,15 @@
 "device.unsupported.title" = "尚未支援此型號的設定";
 "device.unsupported.detail" = "名稱來自 macOS 裝置資訊或接收器回報。目前僅顯示辨識結果，不提供此型號的控制項。";
 "device.identificationUnavailable" = "接收器已連線，但尚無法確認配對滑鼠的型號。喚醒滑鼠後可重新整理。";
+"app.tools" = "工具";
+"hero.summary.read" = "直接讀自滑鼠";
+"hero.charging" = "充電中";
+"hero.bar.legend" = "實心是剩餘電量，斜線是已用掉的。";
+"hero.bar.unknown" = "這支滑鼠沒有回報電量，這裡不做任何猜測。";
+"notice.ok.title" = "設定值都是從這支滑鼠讀回來的";
+"notice.ok.detail" = "讀不到的值會標示為未知，不做任何猜測。";
+"notice.readOnly.title" = "這個型號目前只能顯示，還不能設定";
+"notice.readOnly.detail" = "UTUVO Mouse 只顯示 macOS 回報的資訊；在真機驗證完成之前，設定維持鎖定。";
+"notice.uncertain.title" = "上一次寫入尚未確認";
+"notice.partial.title" = "有部分數值讀不到";
+"notice.partial.detail" = "讀不到的值會顯示為未知，不做猜測。按「重新整理」再讀一次。";

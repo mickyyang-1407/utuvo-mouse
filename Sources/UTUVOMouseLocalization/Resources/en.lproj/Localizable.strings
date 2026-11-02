@@ -388,3 +388,15 @@
 "device.unsupported.title" = "Settings not supported";
 "device.unsupported.detail" = "The name comes from macOS device information or the paired receiver. Controls for this model are not supported yet.";
 "device.identificationUnavailable" = "The receiver is connected, but the paired mouse model could not be verified. Wake the mouse and refresh.";
+"app.tools" = "Tools";
+"hero.summary.read" = "read from the mouse";
+"hero.charging" = "charging";
+"hero.bar.legend" = "Solid is charge left, striped is used.";
+"hero.bar.unknown" = "This mouse has not reported a battery level. Nothing is guessed.";
+"notice.ok.title" = "Settings are read back from this mouse";
+"notice.ok.detail" = "Values that could not be read stay unknown. Nothing is guessed.";
+"notice.readOnly.title" = "This model can be seen, not configured yet";
+"notice.readOnly.detail" = "UTUVO Mouse only shows what macOS reports. Settings stay locked until the model is verified on real hardware.";
+"notice.uncertain.title" = "The last write is unconfirmed";
+"notice.partial.title" = "Some values could not be read";
+"notice.partial.detail" = "Unknown values are shown as unknown, not guessed. Refresh to read the mouse again.";

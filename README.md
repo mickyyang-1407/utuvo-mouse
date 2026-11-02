@@ -2,9 +2,9 @@
 
 A small, independent native macOS controller for Logitech MX Master 4 for Mac and PRO X2 SUPERSTRIKE. English and Traditional Chinese. MIT licensed. No accounts, cloud profiles, RGB editor, macros or preset marketplace.
 
-[Download 0.3.3 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.3.3) — Developer ID signed, Apple notarized, Gatekeeper accepted.
+[Download 0.4.0 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.4.0) — Developer ID signed, Apple notarized, Gatekeeper accepted.
 
-**0.3.3 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
+**0.4.0 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
 
 ## Essentials
 
@@ -30,7 +30,9 @@ Language changes apply after a safe quit/reopen. Login launch and restoring MX m
 
 Exact product IDs identify MX Master 4 M and USB SUPERSTRIKE. A LIGHTSPEED receiver requires its paired device’s reported name; shared DPI/onboard features never establish a model. Other Logitech mouse collections appear by their macOS-reported name, with a read-only notice and no configuration controls or device opening. [Identification details](docs/IDENTIFICATION.md).
 
-0.3.3 puts MX DPI in one row, with SmartShift and wheel controls side by side. SUPERSTRIKE has compact HITS controls and two columns for profile fields/buttons. Normal settings fit without scrolling in a 900 × 500 content area (760 × 500 minimum). English, Traditional Chinese, light/dark appearance and existing login/update preferences remain available. Expanded diagnostics, permission warnings or unusual device states may need scrolling. See [compact-layout validation](docs/COMPACT-UI.md).
+0.4.0 redesigns the window: a translucent sidebar with a color tile and battery level per mouse, a large battery read-out with a charge bar (solid is charge left, striped is used; an unreported level stays fully striped instead of being guessed), one status card (read back from the mouse / permission needed / write unconfirmed / read-only model), pill tabs and a floating bar with Refresh. Device protocol, settings and preferences are unchanged. Because of the larger header, settings below it now scroll at the default window size.
+
+0.3.3 put MX DPI in one row, with SmartShift and wheel controls side by side. SUPERSTRIKE has compact HITS controls and two columns for profile fields/buttons. Normal settings fit without scrolling in a 900 × 500 content area (760 × 500 minimum). English, Traditional Chinese, light/dark appearance and existing login/update preferences remain available. Expanded diagnostics, permission warnings or unusual device states may need scrolling. See [compact-layout validation](docs/COMPACT-UI.md).
 
 ## Action Ring
 
@@ -89,6 +91,8 @@ MX 支援電量、DPI、SmartShift、滾輪、中鍵／前後側鍵複製貼上�
 新版以裝置示意圖、分頁與一致的控制層次重新設計，保留英文／繁中與深淺色。在「MX Master 4 → Action Ring」點選八個位置來指定動作；按住拇指鍵、移向動作後放開，中央放開或 Esc 可取消。配置儲存在本機，不修改 Options+ 設定檔。原廠代理須先釋放拇指鍵，且 UTUVO Mouse 須持續執行；下次啟動是否恢復按鍵，仍由設定中的明確選項控制。實際藍牙裝置已通過啟用讀回／停用還原；隔離模擬按鍵測試不冒充實體拇指按壓驗收。
 
 0.3.1 將 Action Ring 每秒 60 次的游標輪詢改成 AppKit 原生滑鼠事件。相同隔離原生測試的靜止 CPU 從單核心 0.370% 降至 0.00574%，每秒中斷喚醒從 60.47 降至 0.50；反覆開關 60 次，兩版都沒有殘留視窗。完整 App 與隔離浮層的耗用分開記錄，詳見[資源量測](docs/PERFORMANCE.md)。
+
+0.4.0 重新設計視窗：半透明側欄、每支滑鼠的色塊 icon 與電量；大字電量與電量條（實心＝剩餘、斜線＝已用，沒回報就整條斜線、不猜數字）；一張狀態卡（數值讀自滑鼠／需權限／寫入未確認／只讀型號）；膠囊分頁與底部浮動列。裝置通訊、設定與偏好都沒改；因頁首變大，預設視窗下方設定需要捲動。
 
 0.3.3 將 MX 的 DPI 排成單列、SmartShift 與滾輪左右並排，SUPERSTRIKE 的板載設定與按鍵也分兩欄。一般設定在 900×500 內容區即可看完，最小尺寸 760×500；展開診斷、權限或特殊狀態可能需要捲動。MX Master 4 M／USB SUPERSTRIKE 依產品 ID 自動辨識，LIGHTSPEED 依接收器回報的配對裝置名稱確認；不再靠通用功能猜型號。其他 Logitech 滑鼠可顯示系統回報名稱，僅提供辨識、不開啟或設定裝置。中英文、登入自啟動與自動更新偏好均保留。
 

@@ -3,31 +3,166 @@ import AppKit
 import UTUVOMouseCore
 
 enum MouseTheme {
-    static let accent = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(red: 0.48, green: 0.78, blue: 0.69, alpha: 1)
-            : NSColor(red: 0.13, green: 0.43, blue: 0.36, alpha: 1)
-    })
-    static let canvas = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(white: 0.105, alpha: 1) : NSColor(red: 0.967, green: 0.968, blue: 0.960, alpha: 1)
-    })
-    static let surface = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(white: 0.145, alpha: 1) : .white
-    })
+    private static func dynamic(dark: NSColor, light: NSColor) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+        })
+    }
+    /// Actions: the one blue that means "do this".
+    static let accent = dynamic(dark: NSColor(red: 0.30, green: 0.56, blue: 1.00, alpha: 1),
+                                light: NSColor(red: 0.04, green: 0.42, blue: 0.93, alpha: 1))
+    /// State colors only. Never decoration.
+    static let ok = dynamic(dark: NSColor(red: 0.33, green: 0.80, blue: 0.48, alpha: 1),
+                            light: NSColor(red: 0.12, green: 0.56, blue: 0.29, alpha: 1))
+    static let attention = dynamic(dark: NSColor(red: 0.98, green: 0.62, blue: 0.26, alpha: 1),
+                                   light: NSColor(red: 0.85, green: 0.45, blue: 0.05, alpha: 1))
+    static let canvas = dynamic(dark: NSColor(red: 0.110, green: 0.118, blue: 0.140, alpha: 1),
+                                light: NSColor(red: 0.965, green: 0.966, blue: 0.972, alpha: 1))
+    static let surface = dynamic(dark: NSColor(red: 0.150, green: 0.160, blue: 0.188, alpha: 1), light: .white)
+    static let hairline = dynamic(dark: NSColor(white: 1, alpha: 0.07), light: NSColor(white: 0, alpha: 0.07))
 }
 
 struct MouseGroupStyle: GroupBoxStyle {
     func makeBody(configuration: Configuration) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            configuration.label.font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
+            configuration.label.font(.system(size: 13, weight: .semibold)).foregroundStyle(.primary)
             configuration.content
         }
-        .padding(14)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(MouseTheme.surface, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.065), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(MouseTheme.hairline, lineWidth: 1))
+    }
+}
+
+extension MouseModel {
+    var tileColor: Color {
+        switch self {
+        case .mxMaster4: return Color(red: 0.36, green: 0.42, blue: 0.95)
+        case .superstrike: return Color(red: 0.95, green: 0.55, blue: 0.20)
+        case .receiver: return Color(red: 0.25, green: 0.66, blue: 0.70)
+        case .unknown: return Color(white: 0.52)
+        }
+    }
+}
+
+/// Rounded-square icon tile, as in a macOS sidebar.
+struct IconTile: View {
+    let symbol: String
+    let color: Color
+    var size: CGFloat = 22
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+            .fill(LinearGradient(colors: [color.opacity(0.92), color], startPoint: .top, endPoint: .bottom))
+            .frame(width: size, height: size)
+            .overlay(Image(systemName: symbol).font(.system(size: size * 0.5, weight: .semibold)).foregroundStyle(.white))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Small colored capsule beside a title: state only.
+struct StatusPill: View {
+    let text: String
+    let color: Color
+
+    var body: some View {
+        Text(text).font(.system(size: 11, weight: .semibold)).monospacedDigit()
+            .foregroundStyle(color)
+            .padding(.horizontal, 8).padding(.vertical, 2)
+            .background(color.opacity(0.16), in: Capsule())
+    }
+}
+
+/// Diagonal hatching for the part of a bar that is not "solid".
+struct HatchFill: View {
+    let color: Color
+
+    var body: some View {
+        Canvas { context, size in
+            var path = Path()
+            var x: CGFloat = -size.height
+            while x < size.width {
+                path.move(to: CGPoint(x: x, y: size.height)); path.addLine(to: CGPoint(x: x + size.height, y: 0))
+                x += 6
+            }
+            context.stroke(path, with: .color(color.opacity(0.55)), lineWidth: 1.2)
+        }
+        .background(color.opacity(0.10))
+    }
+}
+
+/// Battery bar: solid is charge left, hatched is used. Unknown is all hatched, never guessed.
+struct ChargeBar: View {
+    let percentage: Int?
+
+    var body: some View {
+        let fraction = CGFloat(min(max(percentage ?? 0, 0), 100)) / 100
+        let tint = (percentage ?? 100) <= 20 ? MouseTheme.attention : MouseTheme.ok
+        GeometryReader { proxy in
+            let inner = proxy.size.width - 12
+            HStack(spacing: 4) {
+                if percentage != nil, fraction > 0 {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous).fill(tint)
+                        .frame(width: max(inner * fraction - (fraction < 1 ? 2 : 0), 6))
+                }
+                if fraction < 1 {
+                    HatchFill(color: percentage == nil ? .secondary : tint)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+            }
+            .padding(6)
+        }
+        .frame(height: 40)
+        .background(MouseTheme.surface, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).strokeBorder(MouseTheme.hairline, lineWidth: 1))
+        .accessibilityElement()
+        .accessibilityLabel(percentage.map { "\($0)%" } ?? AppLocalization.text("app.unknownBattery"))
+    }
+}
+
+/// The one blue action, as a capsule. Fixed color: never depends on window focus.
+struct PrimaryCapsuleButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .background(MouseTheme.accent.opacity(configuration.isPressed ? 0.8 : 1), in: Capsule())
+            .opacity(isEnabled ? 1 : 0.45)
+            .contentShape(Capsule())
+    }
+}
+
+/// Conclusion card: one sentence of state, one optional action.
+struct NoticeCard: View {
+    let symbol: String
+    let tint: Color
+    let title: String
+    let detail: String
+    var actionTitle: String?
+    var actionDisabled = false
+    var action: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 14) {
+            RoundedRectangle(cornerRadius: 9, style: .continuous).fill(tint)
+                .frame(width: 34, height: 34)
+                .overlay(Image(systemName: symbol).font(.system(size: 15, weight: .bold)).foregroundStyle(.white))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.system(size: 13, weight: .semibold))
+                Text(detail).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            if let actionTitle, let action {
+                Button(actionTitle, action: action).buttonStyle(.bordered).controlSize(.regular).disabled(actionDisabled)
+            }
+        }
+        .padding(14)
+        .background(tint.opacity(0.09), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(tint.opacity(0.28), lineWidth: 1))
     }
 }
 
@@ -78,14 +213,13 @@ struct DetailTabButton: View {
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 8) {
-                Text(title).font(.system(size: 13, weight: selected ? .semibold : .medium))
-                    .foregroundStyle(selected ? Color.primary : .secondary)
-                Capsule().fill(selected ? MouseTheme.accent : .clear).frame(height: 3)
-            }
-            .fixedSize(horizontal: true, vertical: false)
-            .padding(.horizontal, 2)
-            .contentShape(Rectangle())
+            Text(title).font(.system(size: 12, weight: selected ? .semibold : .medium))
+                .foregroundStyle(selected ? Color.primary : .secondary)
+                .padding(.horizontal, 12).padding(.vertical, 5)
+                .background(selected ? MouseTheme.surface : .clear, in: Capsule())
+                .overlay(Capsule().strokeBorder(selected ? MouseTheme.hairline : .clear, lineWidth: 1))
+                .fixedSize()
+                .contentShape(Capsule())
         }.buttonStyle(.plain).accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 }

@@ -1,6 +1,7 @@
 import SwiftUI
 import UTUVOMouseCore
 import UTUVOMouseIO
+import UTUVOMouseLocalization
 
 /// The detail pane of one device.
 struct DeviceDetailView: View {
@@ -10,27 +11,23 @@ struct DeviceDetailView: View {
     @State private var tab = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            header
-            if snapshot.needsInputMonitoring && !model.isDemo {
-                GroupBox(AppLocalization.text("device.inputMonitoring")) {
-                    Text(snapshot.accessError ?? AppLocalization.text("device.permission.deniedDefault")).foregroundStyle(.secondary)
-                    Button(AppLocalization.text("device.openSystemSettings")) { model.openInputMonitoringSettings() }
-                }
-            }
+        VStack(alignment: .leading, spacing: 14) {
+            hero
+            notice
             if snapshot.identity.model.supportsConfiguration {
-            HStack(spacing: 20) {
-                if snapshot.identity.model == .superstrike {
-                    DetailTabButton(title: AppLocalization.text("ui.hits"), selected: tab == 0) { tab = 0 }
-                    DetailTabButton(title: AppLocalization.text("ui.pointerButtons"), selected: tab == 1) { tab = 1 }
-                } else {
-                    DetailTabButton(title: AppLocalization.text("ui.pointerScroll"), selected: tab == 0) { tab = 0 }
-                    DetailTabButton(title: AppLocalization.text("ui.buttons"), selected: tab == 1) { tab = 1 }
-                    DetailTabButton(title: AppLocalization.text("ring.title"), selected: tab == 2) { tab = 2 }
+                HStack(spacing: 2) {
+                    if snapshot.identity.model == .superstrike {
+                        DetailTabButton(title: AppLocalization.text("ui.hits"), selected: tab == 0) { tab = 0 }
+                        DetailTabButton(title: AppLocalization.text("ui.pointerButtons"), selected: tab == 1) { tab = 1 }
+                    } else {
+                        DetailTabButton(title: AppLocalization.text("ui.pointerScroll"), selected: tab == 0) { tab = 0 }
+                        DetailTabButton(title: AppLocalization.text("ui.buttons"), selected: tab == 1) { tab = 1 }
+                        DetailTabButton(title: AppLocalization.text("ring.title"), selected: tab == 2) { tab = 2 }
+                    }
                 }
-                Spacer(minLength: 0)
-            }
-            .overlay(alignment: .bottom) { Rectangle().fill(.primary.opacity(0.07)).frame(height: 1).offset(y: 2) }
+                .padding(3)
+                .background(.primary.opacity(0.05), in: Capsule())
+                .padding(.top, 6)
             }
             switch snapshot.identity.model {
             case .superstrike:
@@ -47,7 +44,8 @@ struct DeviceDetailView: View {
                     }
                 }
             default:
-                UnavailableSection(title: AppLocalization.text("device.unsupported.title"), detail: AppLocalization.text("device.unsupported.detail"))
+                // The read-only notice card above already says why there are no controls.
+                EmptyView()
             }
             DiagnosticsView(snapshot: snapshot).padding(.top, 4)
         }
@@ -55,32 +53,91 @@ struct DeviceDetailView: View {
         .onChange(of: snapshot.id) { _, _ in tab = 0 }
     }
 
-    private var header: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(snapshot.identity.displayName(language: AppLocalization.localizer.language))
-                    .font(.system(size: 22, weight: .semibold)).tracking(-0.4)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 12) {
-                    Label(snapshot.identity.transport.displayTitle(language: AppLocalization.localizer.language), systemImage: "link")
-                    if let percentage = snapshot.battery.percentage {
-                        Label("\(percentage)%", systemImage: "battery.100")
-                    } else if snapshot.identity.model.supportsConfiguration {
-                        Text(AppLocalization.text("app.unknownBattery"))
-                    }
-                    if !snapshot.identity.model.supportsConfiguration {
-                        Text(AppLocalization.text("device.readOnly"))
-                    }
-                }
-                .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-                if snapshot.isDemo { Text(AppLocalization.text("device.demoData")).font(.caption).foregroundStyle(.orange) }
-            }
-            Spacer(minLength: 0)
-            MouseIllustration(model: snapshot.identity.model).frame(width: 52, height: 60)
-                .rotationEffect(.degrees(8))
-        }
-        .frame(minHeight: 60)
+    private var language: MouseLanguage { AppLocalization.localizer.language }
 
+    /// Only a complete, authoritative read of a real device counts as "read back".
+    private var isReadBack: Bool {
+        !snapshot.isDemo && snapshot.isStateAuthoritative && snapshot.accessError == nil && model.uncertain[snapshot.id] == nil
+    }
+
+    /// Eyebrow, one big read-back number, one summary line. Unknown stays unknown.
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(snapshot.identity.displayName(language: language))
+                .font(.system(size: 14, weight: .medium)).foregroundStyle(.secondary)
+            heroNumber
+            Text(summaryParts.joined(separator: " · "))
+                .font(.system(size: 13)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if snapshot.identity.model.supportsConfiguration {
+                ChargeBar(percentage: snapshot.battery.percentage).padding(.top, 10)
+                Label(AppLocalization.text(snapshot.battery.percentage == nil ? "hero.bar.unknown" : "hero.bar.legend"),
+                      systemImage: "battery.75percent")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var heroNumber: some View {
+        if let percentage = snapshot.battery.percentage {
+            bigValue("\(percentage)", unit: "%")
+        } else if let dpi = snapshot.dpi?.current {
+            bigValue(dpi.formatted(), unit: "DPI")
+        } else {
+            Text(AppLocalization.text(snapshot.identity.model.supportsConfiguration ? "app.unknownBattery" : "device.readOnly"))
+                .font(.system(size: 34, weight: .bold)).tracking(-0.8)
+        }
+    }
+
+    private func bigValue(_ value: String, unit: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(value).font(.system(size: 58, weight: .bold)).monospacedDigit().tracking(-2)
+            Text(unit).font(.system(size: 26, weight: .semibold)).foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var summaryParts: [String] {
+        var parts = [snapshot.identity.transport.displayTitle(language: language)]
+        if snapshot.battery.percentage != nil, let dpi = snapshot.dpi?.current { parts.append("\(dpi.formatted()) DPI") }
+        if snapshot.battery.charging == true { parts.append(AppLocalization.text("hero.charging")) }
+        if snapshot.battery.percentage == nil, snapshot.identity.model.supportsConfiguration {
+            parts.append(AppLocalization.text("app.unknownBattery"))
+        }
+        if isReadBack { parts.append(AppLocalization.text("hero.summary.read")) }
+        return parts
+    }
+
+    @ViewBuilder
+    private var notice: some View {
+        if snapshot.needsInputMonitoring {
+            NoticeCard(symbol: "exclamationmark", tint: MouseTheme.attention,
+                       title: AppLocalization.text("device.inputMonitoring"),
+                       detail: snapshot.accessError ?? AppLocalization.text("device.permission.deniedDefault"),
+                       actionTitle: model.isDemo ? nil : AppLocalization.text("device.openSystemSettings")) { model.openInputMonitoringSettings() }
+        } else if let uncertain = model.uncertain[snapshot.id] {
+            NoticeCard(symbol: "questionmark", tint: MouseTheme.attention,
+                       title: AppLocalization.text("notice.uncertain.title"), detail: uncertain,
+                       actionTitle: AppLocalization.text("app.refresh"), actionDisabled: model.isBusy) { Task { await model.refresh() } }
+        } else if !snapshot.identity.model.supportsConfiguration {
+            NoticeCard(symbol: "lock.fill", tint: Color(white: 0.55),
+                       title: AppLocalization.text("notice.readOnly.title"),
+                       detail: AppLocalization.text("notice.readOnly.detail"))
+        } else if snapshot.isDemo {
+            NoticeCard(symbol: "sparkles", tint: Color(white: 0.55),
+                       title: AppLocalization.text("device.demoData"),
+                       detail: AppLocalization.text("app.demo.help"))
+        } else if !isReadBack {
+            NoticeCard(symbol: "exclamationmark", tint: MouseTheme.attention,
+                       title: AppLocalization.text("notice.partial.title"),
+                       detail: snapshot.accessError ?? AppLocalization.text("notice.partial.detail"),
+                       actionTitle: AppLocalization.text("app.refresh"), actionDisabled: model.isBusy) { Task { await model.refresh() } }
+        } else {
+            NoticeCard(symbol: "checkmark", tint: MouseTheme.ok,
+                       title: AppLocalization.text("notice.ok.title"),
+                       detail: AppLocalization.text("notice.ok.detail"))
+        }
     }
 }
 

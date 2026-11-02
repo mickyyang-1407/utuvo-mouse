@@ -4,6 +4,7 @@ import AppKit
 import UTUVOMouseCore
 import UTUVOMouseIO
 import UTUVOMouseSupport
+import UTUVOMouseLocalization
 
 /// Holds the model for the application delegate.
 @MainActor
@@ -766,27 +767,18 @@ struct ContentView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            sidebar.frame(width: 190)
-            VStack(spacing: 0) {
-                HStack {
-                    if model.isDemo { Text(AppLocalization.text("app.demo")).foregroundStyle(.orange) }
-                    Spacer()
-                    Button { Task { await model.refresh() } } label: {
-                        Image(systemName: "arrow.clockwise").frame(width: 26, height: 24)
-                    }
-                    .disabled(model.isBusy)
-                    .help(AppLocalization.text("app.refresh"))
-                    .accessibilityLabel(AppLocalization.text("app.refresh"))
-                    .keyboardShortcut("r", modifiers: .command)
-                    SettingsLink { Image(systemName: "slider.horizontal.3").frame(width: 26, height: 24) }
+            sidebar.frame(width: 224)
+            detail
+                .overlay(alignment: .topTrailing) {
+                    SettingsLink { Image(systemName: "slider.horizontal.3").frame(width: 30, height: 30) }
+                        .buttonStyle(.plain)
+                        .background(MouseTheme.surface, in: Circle())
+                        .overlay(Circle().strokeBorder(MouseTheme.hairline, lineWidth: 1))
                         .help(SettingsStrings.exit.settingsHelp)
                         .accessibilityLabel(SettingsStrings.exit.settingsHelp)
+                        .padding(.top, 14).padding(.trailing, 20)
                 }
-                .buttonStyle(.borderless)
-                .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 0)
-                detail
-                statusBar
-            }
+                .overlay(alignment: .bottom) { floatingBar.padding(.bottom, 14) }
             .background(MouseTheme.canvas)
         }
         .tint(MouseTheme.accent)
@@ -795,57 +787,103 @@ struct ContentView: View {
         .task { model.start() }
     }
 
+    private var language: MouseLanguage { AppLocalization.localizer.language }
+
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("UTUVO").font(.system(size: 11, weight: .semibold)).tracking(3).foregroundStyle(.secondary)
-                Text("Mouse").font(.system(size: 24, weight: .semibold)).tracking(-0.7)
-            }.padding(.horizontal, 18).padding(.top, 36).padding(.bottom, 22)
-            Text(AppLocalization.text("app.devices")).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-                .padding(.horizontal, 18).padding(.bottom, 8)
+            HStack(spacing: 9) {
+                IconTile(symbol: "computermouse.fill", color: MouseTheme.accent, size: 24)
+                Text("UTUVO Mouse").font(.system(size: 14, weight: .semibold))
+            }
+            .padding(.horizontal, 18).padding(.top, 40).padding(.bottom, 18)
+            sidebarHeading(AppLocalization.text("app.devices"))
             ForEach(model.mice) { snapshot in
+                let selected = model.selected?.id == snapshot.id
                 Button { model.selectedID = snapshot.id } label: {
-                    HStack(spacing: 11) {
-                        MouseIllustration(model: snapshot.identity.model, compact: true).frame(width: 27, height: 38)
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(snapshot.identity.displayName(language: AppLocalization.localizer.language))
-                                .font(.system(size: 12, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
-                            Text(snapshot.identity.transport.displayTitle(language: AppLocalization.localizer.language))
-                                .font(.system(size: 10)).foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 0)
+                    HStack(spacing: 10) {
+                        IconTile(symbol: "computermouse.fill", color: snapshot.identity.model.tileColor)
+                        Text(snapshot.identity.displayName(language: language))
+                            .font(.system(size: 12.5, weight: .medium)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 4)
                         if snapshot.needsInputMonitoring || model.uncertain[snapshot.id] != nil {
-                            Image(systemName: "exclamationmark.circle").foregroundStyle(.orange)
+                            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(MouseTheme.attention)
+                        } else if let percentage = snapshot.battery.percentage {
+                            Text("\(percentage)%").font(.system(size: 12)).monospacedDigit().foregroundStyle(.secondary)
                         }
                     }
-                    .padding(.horizontal, 10).padding(.vertical, 9)
+                    .padding(.horizontal, 8).padding(.vertical, 6)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(model.selected?.id == snapshot.id ? MouseTheme.surface : .clear, in: RoundedRectangle(cornerRadius: 13))
-                    .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(.primary.opacity(model.selected?.id == snapshot.id ? 0.06 : 0), lineWidth: 1))
-                    .contentShape(RoundedRectangle(cornerRadius: 13))
+                    .background(selected ? Color.primary.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
-                .accessibilityAddTraits(model.selected?.id == snapshot.id ? [.isSelected] : [])
-                .padding(.horizontal, 10).padding(.bottom, 4)
+                .help(snapshot.identity.transport.displayTitle(language: language))
+                .accessibilityAddTraits(selected ? [.isSelected] : [])
+                .padding(.horizontal, 10).padding(.bottom, 2)
             }
             if model.mice.isEmpty {
                 Text(AppLocalization.text(model.isScanning ? "app.scanning" : "app.noDevices"))
-                    .font(.callout).foregroundStyle(.secondary).padding(23)
+                    .font(.system(size: 12)).foregroundStyle(.secondary).padding(.horizontal, 18).padding(.vertical, 6)
             }
+            sidebarHeading(AppLocalization.text("app.tools")).padding(.top, 14)
+            SettingsLink {
+                HStack(spacing: 10) {
+                    IconTile(symbol: "gearshape.fill", color: Color(white: 0.55))
+                    Text(AppLocalization.text("app.settings")).font(.system(size: 13, weight: .medium))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 8).padding(.vertical, 6).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).padding(.horizontal, 10)
             Spacer()
             if !model.diagnostics.isEmpty {
                 DisclosureGroup(AppLocalization.text("app.diagnostics")) {
                     ForEach(model.diagnostics, id: \.self) { Text($0).font(.caption2).textSelection(.enabled) }
                 }.font(.caption).foregroundStyle(.secondary).padding(18)
             }
-            HStack(spacing: 7) {
-                Image(systemName: "computermouse.fill").foregroundStyle(MouseTheme.accent)
-                Text("UTUVO Mouse").font(.system(size: 11, weight: .medium))
-            }.foregroundStyle(.secondary).padding(.horizontal, 23).padding(.bottom, 23)
         }
         .frame(maxHeight: .infinity)
-        .background(.primary.opacity(0.025))
-        .overlay(alignment: .trailing) { Rectangle().fill(.primary.opacity(0.06)).frame(width: 1) }
+        .background(SidebarMaterial())
+        .overlay(alignment: .trailing) { Rectangle().fill(MouseTheme.hairline).frame(width: 1) }
+    }
+
+    private func sidebarHeading(_ title: String) -> some View {
+        Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
+            .padding(.horizontal, 18).padding(.bottom, 4)
+    }
+
+    /// Bottom capsule: the latest honest status and the one primary action.
+    private var floatingBar: some View {
+        HStack(spacing: 12) {
+            if model.isDemo { StatusPill(text: AppLocalization.text("app.demo"), color: MouseTheme.attention) }
+            Group {
+                if let message = model.errorMessage {
+                    Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                } else if let message = model.statusMessage {
+                    Label(message, systemImage: "checkmark.circle").foregroundStyle(.secondary)
+                } else {
+                    Text(model.mice.isEmpty ? AppLocalization.text("app.chooseMouse") : AppLocalization.text("app.detectedMice", model.mice.count))
+                        .font(.system(size: 13, weight: .semibold))
+                }
+            }
+            .font(.system(size: 12)).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: 380, alignment: .leading)
+            .help(model.errorMessage ?? model.statusMessage ?? "")
+            .textSelection(.enabled)
+            Button { Task { await model.refresh() } } label: {
+                Label(AppLocalization.text("app.refresh"), systemImage: "arrow.clockwise").padding(.horizontal, 4)
+            }
+            .buttonStyle(PrimaryCapsuleButtonStyle())
+            .disabled(model.isBusy)
+            .keyboardShortcut("r", modifiers: .command)
+        }
+        .padding(.leading, 18).padding(.trailing, 6).padding(.vertical, 6)
+        .frame(maxWidth: 560)
+        .fixedSize(horizontal: true, vertical: false)
+        .background(.regularMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(MouseTheme.hairline, lineWidth: 1))
+        .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
+        .padding(.horizontal, 24)
     }
 
     @ViewBuilder
@@ -854,7 +892,7 @@ struct ContentView: View {
             ScrollView {
                 DeviceDetailView(snapshot: snapshot)
                     .id(snapshot.id)
-                    .padding(.horizontal, 18).padding(.top, 4).padding(.bottom, 12)
+                    .padding(.horizontal, 28).padding(.top, 26).padding(.bottom, 84)
             }
         } else {
             VStack(spacing: 8) {
@@ -870,26 +908,16 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
+}
 
-    private var statusBar: some View {
-        HStack(spacing: 10) {
-            if let message = model.errorMessage {
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
-                    .lineLimit(2)
-            } else if let message = model.statusMessage {
-                Label(message, systemImage: "checkmark.circle")
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            } else {
-                Text(model.mice.isEmpty ? AppLocalization.text("app.chooseMouse") : AppLocalization.text("app.detectedMice", model.mice.count))
-                    .foregroundStyle(.tertiary)
-            }
-            Spacer()
-        }
-        .font(.callout)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
-        .frame(minHeight: 28)
+/// Translucent sidebar, as in a native macOS source list.
+struct SidebarMaterial: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .sidebar
+        view.blendingMode = .behindWindow
+        view.state = .followsWindowActiveState
+        return view
     }
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
