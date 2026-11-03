@@ -43,8 +43,11 @@ struct UTUVOMouseApp: App {
         _settings = State(initialValue: settings)
     }
 
+    @AppStorage(MenuBarPreferences.showIconKey) private var showMenuBarIcon = true
+
     var body: some Scene {
-        WindowGroup {
+        // One main window: the menu bar can only ever bring it forward, never duplicate it.
+        Window("UTUVO Mouse", id: MainWindow.id) {
             ContentView()
                 .environment(model)
                 .environment(settings)
@@ -54,6 +57,15 @@ struct UTUVOMouseApp: App {
         .defaultSize(width: 900, height: 500)
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
+
+        MenuBarExtra(isInserted: $showMenuBarIcon) {
+            MenuBarContent()
+                .environment(model)
+        } label: {
+            Image(systemName: "computermouse.fill")
+                .accessibilityLabel("UTUVO Mouse")
+        }
+        .menuBarExtraStyle(.menu)
 
         Settings {
             SettingsView()
@@ -553,6 +565,74 @@ final class AppModel {
         }
     }
 
+    // MARK: - Profiles
+
+    /// App-side MX profiles. Saving one writes nothing to the mouse.
+    let mxProfiles = MXProfileStore(persists: !LaunchOptions.demoMode)
+
+    func mxReadValues(_ device: DeviceSnapshot) -> MXReadValues {
+        MXReadValues(dpi: device.dpi?.current, smartShiftMode: device.smartShift?.mode,
+                     smartShiftThreshold: device.smartShift?.threshold, wheelInverted: device.wheel?.inverted,
+                     wheelHighResolution: device.wheel?.highResolution)
+    }
+
+    /// The MX profile the read-back values match. Never claimed from demo or partial data.
+    func activeMXProfile(for device: DeviceSnapshot) -> MXProfile? {
+        guard !device.isDemo, device.isStateAuthoritative, uncertain[device.id] == nil else { return nil }
+        return MXProfileLogic.active(in: mxProfiles.profiles, current: mxReadValues(device))
+    }
+
+    /// The running onboard profile of a SUPERSTRIKE, only when the device reported it.
+    func activeOnboardSector(for device: DeviceSnapshot) -> Int? {
+        guard !device.isDemo, device.isStateAuthoritative, uncertain[device.id] == nil,
+              let plan = device.plan, plan.mode == 1 else { return nil }
+        return plan.runningSector
+    }
+
+    /// Saves what the mouse reported as a new profile. Nothing is sent to the mouse.
+    func saveMXProfile(from device: DeviceSnapshot) {
+        let profile = MXProfileLogic.profile(named: mxProfiles.nextName(prefix: AppLocalization.text("profile.defaultName")),
+                                             from: mxReadValues(device))
+        guard profile.hasValues else {
+            errorMessage = AppLocalization.text("profile.nothingToSave")
+            return
+        }
+        mxProfiles.add(profile)
+        statusMessage = mxProfiles.lastSaveFailed ? nil : AppLocalization.text("profile.saved", profile.name)
+        if mxProfiles.lastSaveFailed { errorMessage = AppLocalization.text("profile.saveFailed") }
+    }
+
+    /// Sends only the values that differ, then the refresh reads them back.
+    func applyMXProfile(device: DeviceSnapshot, profile: MXProfile) async {
+        await run {
+            guard let client = self.clients[device.id] else { return }
+            let write = MXProfileLogic.write(for: profile, current: self.mxReadValues(device),
+                                             availableDPI: device.dpi?.available ?? [])
+            guard !write.isEmpty else {
+                // Nothing to send is only "already active" when every saved value is reported and equal.
+                if !write.skippedUnavailableDPI,
+                   MXProfileLogic.active(in: [profile], current: self.mxReadValues(device)) != nil {
+                    self.statusMessage = AppLocalization.text("profile.alreadyActive", profile.name)
+                } else {
+                    self.errorMessage = AppLocalization.text("profile.cannotApply", profile.name)
+                }
+                return
+            }
+            do {
+                if let dpi = write.dpi { try await client.setDPI(dpi) }
+                if write.sendsSmartShift {
+                    try await client.setSmartShift(mode: write.smartShiftMode, threshold: write.smartShiftThreshold)
+                }
+                if write.sendsWheel {
+                    try await client.setWheel(inverted: write.wheelInverted, highResolution: write.wheelHighResolution, diverted: nil)
+                }
+                self.statusMessage = AppLocalization.text(write.skippedUnavailableDPI ? "profile.sentWithoutDPI" : "profile.sent", profile.name)
+            } catch {
+                self.errorMessage = AppLocalization.errorMessage(error)
+            }
+        }
+    }
+
     /// Saves HITS in the active onboard profile, with backup and live readback.
     func applyHITS(device: DeviceSnapshot, draft: HIDPPClient.HitsDraft, capabilities: HitsCapabilities) async {
         await applySuperstrike(device: device, changes: CompoundChanges(hits: [draft]))
@@ -767,7 +847,7 @@ struct ContentView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            sidebar.frame(width: 224)
+            sidebar.frame(width: 240)
             detail
                 .overlay(alignment: .topTrailing) {
                     SettingsLink { Image(systemName: "slider.horizontal.3").frame(width: 30, height: 30) }
@@ -801,7 +881,12 @@ struct ContentView: View {
                 let selected = model.selected?.id == snapshot.id
                 Button { model.selectedID = snapshot.id } label: {
                     HStack(spacing: 10) {
-                        IconTile(symbol: "computermouse.fill", color: snapshot.identity.model.tileColor)
+                        let family = snapshot.shapeFamily
+                        MouseArt(family: family, finish: MouseFinish.finish(model: snapshot.identity.model, family: family))
+                            .frame(width: 24, height: 30)
+                            .padding(.vertical, 2)
+                            .frame(width: 30, height: 34)
+                            .background(snapshot.identity.model.tileColor.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         Text(snapshot.identity.displayName(language: language))
                             .font(.system(size: 12.5, weight: .medium)).lineLimit(2).fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 4)

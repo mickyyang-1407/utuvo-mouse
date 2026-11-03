@@ -7,11 +7,16 @@ import UTUVOMouseLocalization
 /// The settings window: the login item and the updater.
 struct SettingsView: View {
     @Environment(SettingsModel.self) private var settings
+    @AppStorage(MenuBarPreferences.showIconKey) private var showMenuBarIcon = true
 
     var body: some View {
         Form {
             languageSection
             launchSection
+            Section(AppLocalization.text("menu.sectionTitle")) {
+                Toggle(AppLocalization.text("menu.showIcon"), isOn: $showMenuBarIcon)
+                Text(AppLocalization.text("menu.showIconHelp")).font(.caption).foregroundStyle(.secondary)
+            }
             mappingRestoreSection
             updateSection
         }

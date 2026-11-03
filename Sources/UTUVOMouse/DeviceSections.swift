@@ -32,11 +32,12 @@ struct DeviceDetailView: View {
             switch snapshot.identity.model {
             case .superstrike:
                 if tab == 0 { HITSControlSection(snapshot: snapshot) }
-                else { ProfileControlSection(snapshot: snapshot) }
+                else { ProfilesSection(snapshot: snapshot); ProfileControlSection(snapshot: snapshot) }
             case .mxMaster4:
                 if tab == 2 { ActionRingSection(snapshot: snapshot) }
                 else if tab == 1 { SideButtonSection(snapshot: snapshot) }
                 else {
+                    ProfilesSection(snapshot: snapshot)
                     ClassicDPISection(snapshot: snapshot)
                     HStack(alignment: .top, spacing: 12) {
                         SmartShiftSection(snapshot: snapshot).frame(maxWidth: .infinity)
@@ -63,19 +64,37 @@ struct DeviceDetailView: View {
     /// Eyebrow, one big read-back number, one summary line. Unknown stays unknown.
     private var hero: some View {
         VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) { heroText }
+                Spacer(minLength: 0)
+                MouseArt(family: snapshot.shapeFamily,
+                         finish: MouseFinish.finish(model: snapshot.identity.model, family: snapshot.shapeFamily))
+                    .frame(width: 92, height: 128)
+                    .rotationEffect(.degrees(-8))
+                    .padding(.trailing, 36)
+            }
+            heroBar
+        }
+    }
+
+    @ViewBuilder
+    private var heroText: some View {
             Text(snapshot.identity.displayName(language: language))
                 .font(.system(size: 14, weight: .medium)).foregroundStyle(.secondary)
             heroNumber
             Text(summaryParts.joined(separator: " · "))
                 .font(.system(size: 13)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private var heroBar: some View {
             if snapshot.identity.model.supportsConfiguration {
-                ChargeBar(percentage: snapshot.battery.percentage).padding(.top, 10)
+                ChargeBar(percentage: snapshot.battery.percentage).padding(.top, 4)
                 Label(AppLocalization.text(snapshot.battery.percentage == nil ? "hero.bar.unknown" : "hero.bar.legend"),
                       systemImage: "battery.75percent")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
-        }
     }
 
     @ViewBuilder

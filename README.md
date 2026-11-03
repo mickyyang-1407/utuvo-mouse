@@ -2,9 +2,9 @@
 
 A small, independent native macOS controller for Logitech MX Master 4 for Mac and PRO X2 SUPERSTRIKE. English and Traditional Chinese. MIT licensed. No accounts, cloud profiles, RGB editor, macros or preset marketplace.
 
-[Download 0.4.0 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.4.0) — Developer ID signed, Apple notarized, Gatekeeper accepted.
+[Download 0.5.0 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.5.0) — Developer ID signed, Apple notarized, Gatekeeper accepted.
 
-**0.4.0 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
+**0.5.0 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
 
 ## Essentials
 
@@ -30,7 +30,9 @@ Language changes apply after a safe quit/reopen. Login launch and restoring MX m
 
 Exact product IDs identify MX Master 4 M and USB SUPERSTRIKE. A LIGHTSPEED receiver requires its paired device’s reported name; shared DPI/onboard features never establish a model. Other Logitech mouse collections appear by their macOS-reported name, with a read-only notice and no configuration controls or device opening. [Identification details](docs/IDENTIFICATION.md).
 
-0.4.0 redesigns the window: a translucent sidebar with a color tile and battery level per mouse, a large battery read-out with a charge bar (solid is charge left, striped is used; an unreported level stays fully striped instead of being guessed), one status card (read back from the mouse / permission needed / write unconfirmed / read-only model), pill tabs and a floating bar with Refresh. Device protocol, settings and preferences are unchanged. Because of the larger header, settings below it now scroll at the default window size.
+0.5.0 adds a menu bar icon (it can be turned off in Settings) with each mouse, its battery and quick Profile switching. PRO X2 SUPERSTRIKE switches between the onboard profiles the mouse reports; each switch is read back to confirm. MX Master 4 M has no onboard profiles, so its profiles are saved in the app (DPI, SmartShift, wheel): saving sends nothing, and switching sends only the values that differ, then reads the mouse back. A check mark only appears when the mouse reports those values. Nothing switches automatically.
+
+0.4.0 redesigned the window: a translucent sidebar with a color tile and battery level per mouse, a large battery read-out with a charge bar (solid is charge left, striped is used; an unreported level stays fully striped instead of being guessed), one status card (read back from the mouse / permission needed / write unconfirmed / read-only model), pill tabs and a floating bar with Refresh. Device protocol, settings and preferences are unchanged. Because of the larger header, settings below it now scroll at the default window size.
 
 0.3.3 put MX DPI in one row, with SmartShift and wheel controls side by side. SUPERSTRIKE has compact HITS controls and two columns for profile fields/buttons. Normal settings fit without scrolling in a 900 × 500 content area (760 × 500 minimum). English, Traditional Chinese, light/dark appearance and existing login/update preferences remain available. Expanded diagnostics, permission warnings or unusual device states may need scrolling. See [compact-layout validation](docs/COMPACT-UI.md).
 
@@ -91,6 +93,8 @@ MX 支援電量、DPI、SmartShift、滾輪、中鍵／前後側鍵複製貼上�
 新版以裝置示意圖、分頁與一致的控制層次重新設計，保留英文／繁中與深淺色。在「MX Master 4 → Action Ring」點選八個位置來指定動作；按住拇指鍵、移向動作後放開，中央放開或 Esc 可取消。配置儲存在本機，不修改 Options+ 設定檔。原廠代理須先釋放拇指鍵，且 UTUVO Mouse 須持續執行；下次啟動是否恢復按鍵，仍由設定中的明確選項控制。實際藍牙裝置已通過啟用讀回／停用還原；隔離模擬按鍵測試不冒充實體拇指按壓驗收。
 
 0.3.1 將 Action Ring 每秒 60 次的游標輪詢改成 AppKit 原生滑鼠事件。相同隔離原生測試的靜止 CPU 從單核心 0.370% 降至 0.00574%，每秒中斷喚醒從 60.47 降至 0.50；反覆開關 60 次，兩版都沒有殘留視窗。完整 App 與隔離浮層的耗用分開記錄，詳見[資源量測](docs/PERFORMANCE.md)。
+
+0.5.0 新增選單列 icon（可在設定關掉）：列出每支滑鼠、電量，並可快速切換 Profile。PRO X2 SUPERSTRIKE 切換滑鼠回報的板載 Profile，每次都讀回確認；MX Master 4 M 沒有板載 Profile，所以 Profile 存在 App 裡（DPI、SmartShift、滾輪）：儲存不會送任何東西，切換只送出不同的值再讀回。只有滑鼠回報的值相符才打勾；不會自動切換。
 
 0.4.0 重新設計視窗：半透明側欄、每支滑鼠的色塊 icon 與電量；大字電量與電量條（實心＝剩餘、斜線＝已用，沒回報就整條斜線、不猜數字）；一張狀態卡（數值讀自滑鼠／需權限／寫入未確認／只讀型號）；膠囊分頁與底部浮動列。裝置通訊、設定與偏好都沒改；因頁首變大，預設視窗下方設定需要捲動。
 
