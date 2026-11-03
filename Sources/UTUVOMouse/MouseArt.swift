@@ -607,25 +607,25 @@ struct MouseArt: View {
             pad.closeSubpath()
             layer.fill(pad, with: lin([tone(0.18), tone(0.32)],
                                       CGPoint(x: 8, y: 60), CGPoint(x: 26, y: 118)))
-            layer.stroke(pad, with: .color(.black.opacity(0.45)), lineWidth: 0.7)
+            layer.stroke(pad, with: .color(.black.opacity(finish.isLight ? 0.18 : 0.45)), lineWidth: 0.7)
             // Right rim light and soft top light.
             var rim = Path(); rim.move(to: CGPoint(x: 97, y: 50)); rim.addCurve(to: CGPoint(x: 90, y: 124), control1: CGPoint(x: 100, y: 80), control2: CGPoint(x: 99, y: 108))
             layer.stroke(rim, with: .color(.white.opacity(0.10)), lineWidth: 2.5)
         }
-        context.stroke(body, with: .color(.black.opacity(0.5)), lineWidth: 0.8)
+        context.stroke(body, with: .color(.black.opacity(finish.isLight ? 0.22 : 0.5)), lineWidth: 0.8)
         // Button split and the seam to the palm.
         var split = Path(); split.move(to: CGPoint(x: 60.6, y: 0.6)); split.addLine(to: CGPoint(x: 60.6, y: 46))
-        context.stroke(split, with: .color(.black.opacity(0.7)), lineWidth: 0.9)
+        context.stroke(split, with: .color(.black.opacity(finish.isLight ? 0.25 : 0.7)), lineWidth: 0.9)
         var seam = Path(); seam.move(to: CGPoint(x: 30.7, y: 51.5)); seam.addQuadCurve(to: CGPoint(x: 96.2, y: 44.5), control: CGPoint(x: 62, y: 46))
-        context.stroke(seam, with: .color(.black.opacity(0.75)), lineWidth: 0.9)
+        context.stroke(seam, with: .color(.black.opacity(finish.isLight ? 0.25 : 0.75)), lineWidth: 0.9)
         metalWheel(&context, CGRect(x: 56.4, y: 19, width: 8.6, height: 23))
         // Shift button and status light.
-        context.fill(Path(roundedRect: CGRect(x: 57, y: 54.5, width: 7, height: 9), cornerRadius: 1.6), with: .color(Color(white: 0.12)))
+        context.fill(Path(roundedRect: CGRect(x: 57, y: 54.5, width: 7, height: 9), cornerRadius: 1.6), with: .color(finish.isLight ? tone(0.75) : Color(white: 0.12)))
         context.stroke(Path(roundedRect: CGRect(x: 57, y: 54.5, width: 7, height: 9), cornerRadius: 1.6), with: .color(.white.opacity(0.12)), lineWidth: 0.5)
         context.fill(Path(ellipseIn: CGRect(x: 59.6, y: 67, width: 1.8, height: 1.8)), with: .color(Color(red: 0.25, green: 0.9, blue: 0.4)))
         // Thumb wheel and the two side buttons on the shelf edge.
         metalWheel(&context, CGRect(x: 26.6, y: 58.5, width: 5.6, height: 19), ribs: 7)
-        context.fill(Path(roundedRect: CGRect(x: 27.4, y: 79, width: 4, height: 7), cornerRadius: 1.4), with: .color(Color(white: 0.30)))
+        context.fill(Path(roundedRect: CGRect(x: 27.4, y: 79, width: 4, height: 7), cornerRadius: 1.4), with: .color(finish.isLight ? tone(0.45) : Color(white: 0.30)))
     }
 
     /// PRO X2 SUPERSTRIKE: long symmetric egg, a separate dark button panel with
