@@ -28,8 +28,8 @@ BUILD_DIR="${BUILD_DIR:-build}"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 EXECUTABLE="UTUVO Mouse"
 BUNDLE_ID="com.utuvo.mouse"
-SHORT_VERSION="0.5.2"
-BUILD_VERSION="15"
+SHORT_VERSION="0.5.3"
+BUILD_VERSION="16"
 DEFAULT_FEED_URL="https://github.com/mickyyang-1407/utuvo-mouse/releases/latest/download/appcast.xml"
 SPARKLE_LICENSE_SHA="389a4e4e9a32f059775b13a06e25a591445ba229d2838d26dd3e7c0c45127cfe"
 
@@ -162,6 +162,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
         <string>en</string>
         <string>zh-Hant</string>
     </array>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleExecutable</key>
     <string>$EXECUTABLE</string>
     <key>CFBundleIdentifier</key>
@@ -198,6 +200,7 @@ PLIST
 
 # Include notices with every locally built app, including standalone copies.
 cp LICENSE THIRD-PARTY-NOTICES.md "$APP_BUNDLE/Contents/Resources/"
+cp config/AppIcon.icns "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
 cp -R LICENSES "$APP_BUNDLE/Contents/Resources/"
 
 # The full Sparkle license travels with the app, including the external
