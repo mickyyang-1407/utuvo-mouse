@@ -6,9 +6,9 @@
 
 A small, independent native macOS controller for Logitech MX Master 4 for Mac and PRO X2 SUPERSTRIKE. English and Traditional Chinese. MIT licensed. No accounts, cloud profiles, RGB editor, macros or preset marketplace.
 
-[Download 0.5.1 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.5.1) — Developer ID signed, Apple notarized, Gatekeeper accepted.
+[Download 0.5.2 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.5.2) — Developer ID signed, Apple notarized, Gatekeeper accepted.
 
-**0.5.1 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
+**0.5.2 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
 
 ## Essentials
 
@@ -33,6 +33,8 @@ Language changes apply after a safe quit/reopen. Login launch and restoring MX m
 ## Automatic identification
 
 Exact product IDs identify MX Master 4 M and USB SUPERSTRIKE. A LIGHTSPEED receiver requires its paired device’s reported name; shared DPI/onboard features never establish a model. Other Logitech mouse collections appear by their macOS-reported name, with a read-only notice and no configuration controls or device opening. [Identification details](docs/IDENTIFICATION.md).
+
+0.5.2: lighter seams and buttons on light-colored MX drawings, and a clearer note that this is an unofficial personal tool.
 
 0.5.1: a mouse that wakes up behind a LIGHTSPEED receiver now appears without pressing Refresh. A supported mouse whose first read was incomplete is read again too. The app listens for the receiver's link notification and, only while a receiver has no reachable mouse or a read was incomplete, reads again every 30 seconds.
 
