@@ -67,13 +67,41 @@ struct DeviceDetailView: View {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) { heroText }
                 Spacer(minLength: 0)
-                MouseArt(family: snapshot.shapeFamily,
-                         finish: MouseFinish.finish(model: snapshot.identity.model, family: snapshot.shapeFamily))
-                    .frame(width: 92, height: 128)
-                    .rotationEffect(.degrees(-8))
-                    .padding(.trailing, 36)
+                VStack(spacing: 8) {
+                    MouseArt(family: snapshot.shapeFamily, finish: model.finish(for: snapshot),
+                             twoTone: snapshot.identity.model == .superstrike)
+                        .frame(width: 92, height: 128)
+                        .rotationEffect(.degrees(-8))
+                    colorPicker
+                }
+                .padding(.trailing, 36)
             }
             heroBar
+        }
+    }
+
+    /// The person picks the body color; nothing here is read from the mouse.
+    @ViewBuilder
+    private var colorPicker: some View {
+        let options = MouseFinish.options(model: snapshot.identity.model, family: snapshot.shapeFamily)
+        if options.count > 1 {
+            let current = model.finish(for: snapshot)
+            HStack(spacing: 6) {
+                ForEach(options, id: \.self) { option in
+                    Button { model.setFinish(option, for: snapshot) } label: {
+                        Circle().fill(option.swatch)
+                            .overlay(Circle().strokeBorder(.primary.opacity(0.25), lineWidth: 0.5))
+                            .frame(width: 14, height: 14)
+                            .padding(2)
+                            .overlay(Circle().strokeBorder(current == option ? MouseTheme.accent : .clear, lineWidth: 1.6))
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(AppLocalization.text(option.localizationKey))
+                    .accessibilityLabel(AppLocalization.text("color.accessibility", AppLocalization.text(option.localizationKey)))
+                    .accessibilityAddTraits(current == option ? [.isSelected] : [])
+                }
+            }
         }
     }
 

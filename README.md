@@ -2,9 +2,9 @@
 
 A small, independent native macOS controller for Logitech MX Master 4 for Mac and PRO X2 SUPERSTRIKE. English and Traditional Chinese. MIT licensed. No accounts, cloud profiles, RGB editor, macros or preset marketplace.
 
-[Download 0.5.0 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.5.0) — Developer ID signed, Apple notarized, Gatekeeper accepted.
+[Download 0.5.1 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.5.1) — Developer ID signed, Apple notarized, Gatekeeper accepted.
 
-**0.5.0 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
+**0.5.1 beta.** The supported features are implemented and the corrected LIGHTSPEED path has been checked on hardware. See the validation limits below.
 
 ## Essentials
 
@@ -29,6 +29,8 @@ Language changes apply after a safe quit/reopen. Login launch and restoring MX m
 ## Automatic identification
 
 Exact product IDs identify MX Master 4 M and USB SUPERSTRIKE. A LIGHTSPEED receiver requires its paired device’s reported name; shared DPI/onboard features never establish a model. Other Logitech mouse collections appear by their macOS-reported name, with a read-only notice and no configuration controls or device opening. [Identification details](docs/IDENTIFICATION.md).
+
+0.5.1: a mouse that wakes up behind a LIGHTSPEED receiver now appears without pressing Refresh. A supported mouse whose first read was incomplete is read again too. The app listens for the receiver's link notification and, only while a receiver has no reachable mouse or a read was incomplete, reads again every 30 seconds.
 
 0.5.0 adds a menu bar icon (it can be turned off in Settings) with each mouse, its battery and quick Profile switching. PRO X2 SUPERSTRIKE switches between the onboard profiles the mouse reports; each switch is read back to confirm. MX Master 4 M has no onboard profiles, so its profiles are saved in the app (DPI, SmartShift, wheel): saving sends nothing, and switching sends only the values that differ, then reads the mouse back. A check mark only appears when the mouse reports those values. Nothing switches automatically.
 
@@ -93,6 +95,8 @@ MX 支援電量、DPI、SmartShift、滾輪、中鍵／前後側鍵複製貼上�
 新版以裝置示意圖、分頁與一致的控制層次重新設計，保留英文／繁中與深淺色。在「MX Master 4 → Action Ring」點選八個位置來指定動作；按住拇指鍵、移向動作後放開，中央放開或 Esc 可取消。配置儲存在本機，不修改 Options+ 設定檔。原廠代理須先釋放拇指鍵，且 UTUVO Mouse 須持續執行；下次啟動是否恢復按鍵，仍由設定中的明確選項控制。實際藍牙裝置已通過啟用讀回／停用還原；隔離模擬按鍵測試不冒充實體拇指按壓驗收。
 
 0.3.1 將 Action Ring 每秒 60 次的游標輪詢改成 AppKit 原生滑鼠事件。相同隔離原生測試的靜止 CPU 從單核心 0.370% 降至 0.00574%，每秒中斷喚醒從 60.47 降至 0.50；反覆開關 60 次，兩版都沒有殘留視窗。完整 App 與隔離浮層的耗用分開記錄，詳見[資源量測](docs/PERFORMANCE.md)。
+
+0.5.1：LIGHTSPEED 接收器後面的滑鼠醒來時，不用按「重新整理」就會出現。讀取不完整的滑鼠也會自動重讀。App 會聽接收器的連線通知，而且只在「有接收器但連不到滑鼠」或「讀取不完整」時每 30 秒再讀一次。
 
 0.5.0 新增選單列 icon（可在設定關掉）：列出每支滑鼠、電量，並可快速切換 Profile。PRO X2 SUPERSTRIKE 切換滑鼠回報的板載 Profile，每次都讀回確認；MX Master 4 M 沒有板載 Profile，所以 Profile 存在 App 裡（DPI、SmartShift、滾輪）：儲存不會送任何東西，切換只送出不同的值再讀回。只有滑鼠回報的值相符才打勾；不會自動切換。
 

@@ -177,6 +177,40 @@ final class AppModel {
         }
     }
 
+    @ObservationIgnored private var wakeRetry: Task<Void, Never>?
+    @ObservationIgnored private var incompleteReadRetries = 0
+
+    /// A receiver with no reachable mouse usually means the mouse is asleep, and
+    /// a supported mouse can answer only part of a read right after it wakes.
+    /// The receiver's wake notification refreshes at once; as a fallback, read
+    /// again every 30 seconds while — and only while — one of these is the case.
+    /// Permission problems are excluded: reading again cannot fix them.
+    private func scheduleWakeRetryIfNeeded(afterRead: Bool = false) {
+        // Reading again cannot fix demo data or a permission or open failure.
+        let retryable: (DeviceSnapshot) -> Bool = { !$0.isDemo && !$0.needsInputMonitoring && $0.accessError == nil }
+        let receiverWaiting = snapshots.contains { $0.identity.model == .receiver && retryable($0) }
+        let incompleteRead = snapshots.contains { snapshot in
+            snapshot.identity.model.supportsConfiguration && !snapshot.isStateAuthoritative && retryable(snapshot)
+        }
+        let decision = WakeRetryPolicy.decide(receiverWaiting: receiverWaiting, incompleteRead: incompleteRead,
+                                              retries: incompleteReadRetries, afterRead: afterRead)
+        incompleteReadRetries = decision.retries
+        guard decision.retry else {
+            wakeRetry?.cancel()
+            wakeRetry = nil
+            return
+        }
+        guard wakeRetry == nil else { return }
+        wakeRetry = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(WakeRetryPolicy.interval))
+            guard !Task.isCancelled, let self else { return }
+            self.wakeRetry = nil
+            await self.refresh()
+            // A skipped refresh (busy) must not end the retries.
+            self.scheduleWakeRetryIfNeeded()
+        }
+    }
+
     /// Re-reads every device and, only when opted in, checks saved MX mapping intent.
     func refresh() async {
         guard !isBusy, !isRefreshing else { return }
@@ -239,6 +273,7 @@ final class AppModel {
             snapshot.accessError.map { "\(snapshot.identity.productName): \($0)" }
         })
         snapshots = result
+        scheduleWakeRetryIfNeeded(afterRead: true)
         // Only an authoritative read clears the warning of a device.
         for snapshot in result where snapshot.isStateAuthoritative {
             uncertain[snapshot.id] = nil
@@ -565,6 +600,24 @@ final class AppModel {
         }
     }
 
+    // MARK: - Mouse color
+
+    /// Chosen body colors per device. macOS cannot report a mouse's color.
+    /// App-only data; the demo keeps its choices in memory.
+    private(set) var finishes: [String: String] = LaunchOptions.demoMode
+        ? [:] : (UserDefaults.standard.dictionary(forKey: "mouseFinish.v1") as? [String: String] ?? [:])
+
+    func finish(for device: DeviceSnapshot) -> MouseFinish {
+        let options = MouseFinish.options(model: device.identity.model, family: device.shapeFamily)
+        if let raw = finishes[device.id], let chosen = MouseFinish(rawValue: raw), options.contains(chosen) { return chosen }
+        return options[0]
+    }
+
+    func setFinish(_ finish: MouseFinish, for device: DeviceSnapshot) {
+        finishes[device.id] = finish.rawValue
+        if !isDemo { UserDefaults.standard.set(finishes, forKey: "mouseFinish.v1") }
+    }
+
     // MARK: - Profiles
 
     /// App-side MX profiles. Saving one writes nothing to the mouse.
@@ -881,8 +934,8 @@ struct ContentView: View {
                 let selected = model.selected?.id == snapshot.id
                 Button { model.selectedID = snapshot.id } label: {
                     HStack(spacing: 10) {
-                        let family = snapshot.shapeFamily
-                        MouseArt(family: family, finish: MouseFinish.finish(model: snapshot.identity.model, family: family))
+                        MouseArt(family: snapshot.shapeFamily, finish: model.finish(for: snapshot),
+                                 twoTone: snapshot.identity.model == .superstrike)
                             .frame(width: 24, height: 30)
                             .padding(.vertical, 2)
                             .frame(width: 30, height: 34)

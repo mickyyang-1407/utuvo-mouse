@@ -98,6 +98,9 @@ public final class IOKitHIDTransport: HIDPPTransport, @unchecked Sendable {
     private let buffer: UnsafeMutablePointer<UInt8>
     private let lock = NSLock()
     private var handler: (@Sendable ([UInt8]) -> Void)?
+    private var linkHandler: (@Sendable () -> Void)?
+    /// Last link state the receiver announced per paired-device index.
+    private var linkedByIndex: [UInt8: Bool] = [:]
     private var isOpen = false
     private var receiverAnnounced = false
 
@@ -179,6 +182,31 @@ public final class IOKitHIDTransport: HIDPPTransport, @unchecked Sendable {
         lock.withLock { self.handler = handler }
     }
 
+    /// Called when the receiver announces that a paired device that was
+    /// announced as disconnected is linked again (it woke up or came back).
+    public func setLinkEstablishedHandler(_ handler: @escaping @Sendable () -> Void) {
+        lock.withLock { self.linkHandler = handler }
+    }
+
+    /// HID++ 1.0 device-connection notification (sub ID 0x41) from a receiver.
+    /// Byte 4 bit 6 set means the link is not established.
+    public static func linkState(of bytes: [UInt8]) -> (index: UInt8, linked: Bool)? {
+        guard bytes.count >= 5, bytes[0] == 0x10 || bytes[0] == 0x11, bytes[2] == 0x41 else { return nil }
+        return (bytes[1], bytes[4] & 0x40 == 0)
+    }
+
+    private func noteLinkState(_ bytes: [UInt8]) {
+        guard descriptor.productID == TargetProducts.receiver, let state = Self.linkState(of: bytes) else { return }
+        let woke = lock.withLock { () -> Bool in
+            let previous = linkedByIndex[state.index]
+            linkedByIndex[state.index] = state.linked
+            // Only a known disconnected → linked change: the arrival answers the
+            // app's own announce request do not trigger another read.
+            return previous == false && state.linked
+        }
+        if woke { lock.withLock { linkHandler }?() }
+    }
+
     private func deliver(reportID: UInt32, report: UnsafeMutablePointer<UInt8>, length: CFIndex) {
         guard length > 0, length <= Self.bufferSize else { return }
         let leadingIsHIDPP = HIDPPReportID(rawValue: report[0]) != nil
@@ -190,6 +218,7 @@ public final class IOKitHIDTransport: HIDPPTransport, @unchecked Sendable {
         if !leadingIsHIDPP, let id = UInt8(exactly: reportID) {
             bytes.insert(id, at: 0)
         }
+        noteLinkState(bytes)
         let handler = lock.withLock { self.handler }
         handler?(bytes)
     }
@@ -384,6 +413,7 @@ public final class LogitechHIDService: @unchecked Sendable {
             handler?(descriptor, failure)
             return
         }
+        transport.setLinkEstablishedHandler { [weak self] in self?.publishChange() }
         lock.withLock { transports[key] = transport }
         publishChange()
     }

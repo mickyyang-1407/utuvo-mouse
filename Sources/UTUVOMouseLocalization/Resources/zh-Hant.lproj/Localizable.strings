@@ -426,3 +426,10 @@
 "profile.summary.inverted" = "反向";
 "profile.cannotApply" = "%@ 無法套用：這支滑鼠不提供它的 DPI，或目前有數值讀不到。沒有送出任何東西。";
 "profile.sentWithoutDPI" = "已送出 %@，但沒有包含 DPI（這支滑鼠不提供那個值）。下方數值是從滑鼠讀回來的。";
+"color.graphite" = "石墨灰";
+"color.black" = "黑色";
+"color.paleGray" = "淺灰";
+"color.white" = "白色";
+"color.rose" = "玫瑰粉";
+"color.lilac" = "淡紫";
+"color.accessibility" = "滑鼠顏色：%@";

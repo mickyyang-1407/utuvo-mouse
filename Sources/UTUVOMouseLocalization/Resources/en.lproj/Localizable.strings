@@ -426,3 +426,10 @@
 "profile.summary.inverted" = "reversed";
 "profile.cannotApply" = "%@ could not be applied: its DPI is not offered by this mouse, or a current value could not be read. Nothing was sent.";
 "profile.sentWithoutDPI" = "%@ was sent without its DPI, which this mouse does not offer. The values below are read back from the mouse.";
+"color.graphite" = "Graphite";
+"color.black" = "Black";
+"color.paleGray" = "Pale gray";
+"color.white" = "White";
+"color.rose" = "Rose";
+"color.lilac" = "Lilac";
+"color.accessibility" = "Mouse color: %@";
