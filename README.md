@@ -1,5 +1,9 @@
 # UTUVO Mouse
 
+> **Unofficial personal project.** Not made, endorsed or supported by Logitech. Logitech G HUB and Logi Options+ remain the reference for every feature and setting; this app only covers a few everyday controls for the owner's own mice.
+>
+> **個人自用的非官方工具。** 不是羅技製作、背書或支援的產品；所有功能與設定以羅技官方 G HUB／Logi Options+ 為準，這裡只整合幾個日常會用到的開關。
+
 A small, independent native macOS controller for Logitech MX Master 4 for Mac and PRO X2 SUPERSTRIKE. English and Traditional Chinese. MIT licensed. No accounts, cloud profiles, RGB editor, macros or preset marketplace.
 
 [Download 0.5.1 beta](https://github.com/mickyyang-1407/utuvo-mouse/releases/tag/v0.5.1) — Developer ID signed, Apple notarized, Gatekeeper accepted.
@@ -110,4 +114,4 @@ Other Logitech mouse names can appear through passive macOS inventory; settings 
 
 ## License
 
-MIT. See `LICENSE`, `THIRD-PARTY-NOTICES.md` and `LICENSES/`. Logitech trademarks and product names belong to their owners. This project is not affiliated with Logitech.
+MIT. See `LICENSE`, `THIRD-PARTY-NOTICES.md` and `LICENSES/`. Logitech, Logi, G HUB, Logi Options+, MX Master, PRO X2 SUPERSTRIKE and other product names are trademarks of Logitech; they are used only to say which mice this app works with. This project is not affiliated with Logitech and uses no Logitech logos, software or firmware. The mouse drawings are original illustrations used to identify a connected mouse. The protocol work relies on publicly documented HID++ research from open-source projects (Solaar, libratbag) and on reading the owner's own devices.
